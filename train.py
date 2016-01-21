@@ -1,7 +1,4 @@
 '''
-This is an example of sentiment analysis using tensorflow
- with variable sequence length input
-
 I used mainly the tensorflow translation example:
 https://github.com/tensorflow/tensorflow/
 
@@ -37,8 +34,12 @@ learning_rate = 0.001
 lr_decay_factor = 0.01
 steps_per_checkpoint = 10
 checkpoint_dir = "data/checkpoints/"
-
-
+dropout = 1.0
+grad_clip = 5
+string_args = [("hidden_size", "int"), ("num_layers", "int"), ("batch_size", "int"),
+("max_epoch", "int"),("learning_rate", "float"), ("steps_per_checkpoint", "int"),
+("lr_decay_factor", "float"), ("max_seq_length", "int"),
+("checkpoint_dir","string"), ("dropout", "float"), ("grad_clip", "int")]
 x = '''
 cmd line args will be:
 hidden_size: number of hidden units in hidden layers
@@ -50,7 +51,8 @@ steps_per_checkpoint: number of steps before running test set
 lr_decay_factor: factor by which to decay learning rate
 max_seq_length: maximum length of input token sequence
 checkpoint_dir: directory to store/restore checkpoints
-
+dropout: probability of hidden inputs being removed
+grad_clip: max gradient norm
 '''
 def main():
     setNetworkParameters()
@@ -118,7 +120,7 @@ def main():
 
 def createModel(session, vocab_size):
     model = models.sentiment.SentimentModel(vocab_size, hidden_size,
-    num_layers, 5, max_seq_length, batch_size,
+    dropout, num_layers, grad_clip, max_seq_length, batch_size,
     learning_rate, lr_decay_factor)
     ckpt = tf.train.get_checkpoint_state(checkpoint_dir)
     if ckpt and gfile.Exists(ckpt.model_checkpoint_path):
@@ -127,37 +129,33 @@ def createModel(session, vocab_size):
     else:
         print("Created model with fresh parameters.")
         session.run(tf.initialize_all_variables())
+        	#write to tensorboard log
+    	merged = tf.merge_all_summaries()
+    	writer = tf.train.SummaryWriter("/tmp/tb_logs", session.graph_def)
     return model
 
+'''
+This function is sort of silly, but I don't know how else to restore the model
+from a checkpoint without giving it the same hyper parameters. This method
+makes it easier to store (and restore) the hyper parameters of the model.
+
+This only works because they are all numerical types.
+'''
+def saveHyperParameters():
+    hParams = np.array([vocab_size, hidden_size,
+    dropout, num_layers, grad_clip, max_seq_length, batch_size,
+    learning_rate, lr_decay_factor])
+    path = os.path.join(checkpoint_dir, "hyper.params")
+    np.save(path, hParams)
+
+
+#to remove code duplication I decided to do some reflection-type parsing
 def setNetworkParameters():
     try:
-        if "hidden_size" in sys.argv:
-            global hidden_size
-            hidden_size = int(sys.argv[sys.argv.index("hidden_size") + 1])
-        if "num_layers" in sys.argv:
-            global num_layers
-            num_layers = int(sys.argv[sys.argv.index("num_layers") + 1])
-        if "batch_size" in sys.argv:
-            global batch_size
-            batch_size = int(sys.argv[sys.argv.index("batch_size") + 1])
-        if "max_epoch" in sys.argv:
-            global max_epoch
-            max_epoch = int(sys.argv[sys.argv.index("max_epoch") + 1])
-        if "learning_rate" in sys.argv:
-            global learning_rate
-            max_epoch = int(sys.argv[sys.argv.index("learning_rate") + 1])
-        if "lr_decay_factor" in sys.argv:
-            global lr_decay_factor
-            max_epoch = int(sys.argv[sys.argv.index("lr_decay_factor") + 1])
-        if "max_seq_length" in sys.argv:
-            global max_seq_length
-            max_seq_length = int(sys.argv[sys.argv.index("max_seq_length") + 1])
-        if "checkpoint_dir" in sys.argv:
-            global checkpoint_dir
-            checkpoint_dir = sys.argv[sys.argv.index("checkpoint_dir") + 1]
-        if "steps_per_checkpoint" in sys.argv:
-            global steps_per_checkpoint
-            checkpoint_dir = sys.argv[sys.argv.index("steps_per_checkpoint") + 1]
+        for arg in string_args:
+            exec("if \"{0}\" in sys.argv:\n\
+                \tglobal {0}\n\
+                \t{0} = {1}(sys.argv[sys.argv.index({0}) + 1])".format(arg[0], arg[1]))
     except Exception as a:
         print "Problem with cmd args " + a
         print x
