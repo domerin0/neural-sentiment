@@ -26,15 +26,15 @@ The model is: embedding layer -> LSTMCells -> logistic regression output layer. 
 
 ### Tensorboard Usage
 
-I've begun to implement tensorboard 
+I've begun to implement tensorboard variables and histograms.
 
-For now, you can access tensorboard with this application by using:
+You can access tensorboard with this application by using:
 
 `tensorboard --logfile="tensorboard --logdir=/tmp/tb_logs/"`
 
 Then copy and paste the localhost url your terminal window gives you, into your browser of choice.
 
-There isn't much to see right no except an overview of the graph.
+There isn't much to see right no except an overview of the graph. I will include screenshots of this down the road.
 
 ### Results
 
