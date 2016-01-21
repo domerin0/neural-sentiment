@@ -6,6 +6,16 @@ A sentiment analyzer using deep rnns, built with TensorFlow.
 1. Install [TensorFlow](https://www.tensorflow.org/versions/master/get_started/os_setup.html)
 2. `sudo pip install nltk`
 
+Next you will need to download the nltk tokenizer dataset:
+
+1. run a python session in terminal `python`
+2. `>>> import nltk`
+3. `>>> nltk.download()`
+4. type 'd', then hit enter
+5. type 'punkt' then hit enter
+
+You can exit the python terminal once the download is done, your dependencies will be all setup.
+
 ### Usage Instructions
 
 To run with preset hyper-parameters just run:
