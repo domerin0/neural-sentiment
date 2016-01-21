@@ -12,7 +12,30 @@ To run with preset hyper-parameters just run:
 
 `python train.py`
 
-It will download the data set, unzip, and process it. This will take several minutes. The training will begin automatically after this is done.
+To try other models with different hyper parameters you can do something like:
+
+`python train.py batch_size 125 max_seq_length 350 dropout 0.9 `
+
+The modifiable hyper-parameters are:
+
+
+|   Name               | Type          |     Description                            |
+| :-------------------:|:-------------:|:-------------------------------------------|
+| hidden_size          | int           | number of hidden units in hidden layers    |
+| num_layers           | int           |   number of hidden layers                  |
+| batch_size           | int           |    size of batchs in training              |
+| max_epoch            | int           |    max number of epochs to train for       |
+| learning_rate        | float         |    beggining learning rate                 |
+| steps_per_checkpoint | int           |    number of steps before running test set |
+| lr_decay_factor      | float         |    factor by which to decay learning rate  |
+| batch_size           | int           |    size of batchs in training              |
+| max_seq_length       | int           |    maximum length of input token sequence  |
+| checkpoint_dir       | string        |    directory to store/restore checkpoints  |
+| dropout              | float         | probability of hidden inputs being removed |
+| grad_clip            | int           |    max gradient norm                       |
+
+
+When you first run train.py, it will download the data set, unzip, and process it. This will take several minutes. The training will begin automatically after this is done.
 
 After your model is trained you can run:
 
@@ -30,11 +53,11 @@ I've begun to implement tensorboard variables and histograms.
 
 You can access tensorboard with this application by using:
 
-`tensorboard --logfile="tensorboard --logdir=/tmp/tb_logs/"`
+`tensorboard --logdir=/tmp/tb_logs/`
 
 Then copy and paste the localhost url your terminal window gives you, into your browser of choice.
 
-There isn't much to see right no except an overview of the graph. I will include screenshots of this down the road.
+There isn't much to see right now except an overview of the graph. I will include screenshots of this down the road as I add more tensorboard functionality to this project.
 
 ### Results
 
