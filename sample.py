@@ -17,10 +17,8 @@ import tensorflow as tf
 from tensorflow.models.rnn import rnn, rnn_cell, seq2seq
 import numpy as np
 import sys
-import math
 import os
-import random
-import time
+import nltk
 from six.moves import xrange
 import util.dataprocessor
 import models.sentiment
@@ -37,17 +35,27 @@ checkpoint_dir: directory to store/restore checkpoints
 
 
 def main():
+    vocab_mapping = util.vocab_mapping.VocabMapping()
     with tf.Session() as sess:
         model = loadModel()
         if model == None:
             return
-        
-        return 0
+        tokens = tokenize(review.read().lower())
+        if len(tokens) > model.max_seq_length:
+            tokens = tokens[0:model.max_seq_length]
+        indices = [vocab_mapping.getIndex(j) for j in tokens]
+        indices = [vocab_mapping.getIndex("<PAD>") for j in range(model.max_seq_length - len(tokens))]
+        assert len(indices) == model.max_seq_length,"Error! length is"
+        indices.append(1)
+        indices.append(len(tokens))
+        batch_inputs, targets, seq_lengths = model.getBatch(data, train_data=False)
+        _, _, output = model.step(sess, batch_inputs, targets, seq_lengths, True)
+        print "Value of sentiment: {0}".format(output)
 
 
 def loadModel():
     model = models.sentiment.SentimentModel(vocab_size, hidden_size,
-    num_layers, 5, max_seq_length, batch_size,
+    num_layers, 5, max_seq_length, 1,
     learning_rate, lr_decay_factor)
     ckpt = tf.train.get_checkpoint_state(checkpoint_dir)
     if ckpt and gfile.Exists(ckpt.model_checkpoint_path):
