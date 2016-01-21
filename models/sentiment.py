@@ -145,10 +145,10 @@ class SentimentModel(object):
 			input_feed[self.seq_input[i].name] = inputs[i]
 			input_feed[self.targets[i].name] = float(targets[i] / 10.0)
 		if not forward_only:
-			input_feed[self.seq_lengths.name] = seq_lengths
 			output_feed = [self.updates,self.gradient_norms, sum(self.losses) / len(inputs)]
 		else:
 			output_feed = [sum(self.losses) / len(inputs)]
+		input_feed[self.seq_lengths.name] = seq_lengths
 		for i in xrange(len(self.outputs)):
 			output_feed.append(self.outputs[i])
 
@@ -158,17 +158,3 @@ class SentimentModel(object):
 			return outputs[1], outputs[2], None
 		else:
 			return None, outputs[0], outputs[1:]
-
-
-	def predict(self, session, inputs):
-		'''
-		Inputs:
-		session: tensorflow session
-		inputs: list of list of ints representing tokens in review
-
-		Returns:
-		outputs: a float 0>=x<=1 indicating positive or negative
-		'''
-		feed = {early_stop:len(inputs), seq_input:inputs}
-		outputs = session.run(self.output_projection, feed)
-		return outputs[1:]

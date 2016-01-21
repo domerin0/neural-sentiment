@@ -15,6 +15,7 @@ Written by: Dominik Kaukinen
 '''
 import tensorflow as tf
 from tensorflow.models.rnn import rnn, rnn_cell, seq2seq
+from tensorflow.python.platform import gfile
 import numpy as np
 import sys
 import math
@@ -29,12 +30,12 @@ import util.vocabmapping
 #Defaults for network parameters
 hidden_size = 128
 max_seq_length = 500
-num_layers = 2
+num_layers = 1
 batch_size = 25
 max_epoch = 150
-learning_rate = 0.7
+learning_rate = 0.001
 lr_decay_factor = 0.01
-steps_per_checkpoint = 50
+steps_per_checkpoint = 10
 checkpoint_dir = "data/checkpoints/"
 
 
@@ -71,7 +72,7 @@ def main():
     for i in range(1, len(infile)):
         data = np.vstack((data, np.load(os.path.join(path, infile[i]))))
     np.random.shuffle(data)
-
+    num_batches = len(data) / batch_size
     # 70/30 splir for train/test
     train_start_end_index = [0, int(0.7 * len(data))]
     test_start_end_index = [int(0.7 * len(data)) + 1, len(data) - 1]
@@ -87,7 +88,7 @@ def main():
 
         step_time, loss = 0.0, 0.0
         previous_losses = []
-        for step in xrange(max_epoch):
+        for step in xrange(num_batches * max_epoch):
             # Get a batch and make a step.
             start_time = time.time()
             inputs, targets, seq_lengths = model.getBatch(data[train_start_end_index[0]:train_start_end_index[1]])
@@ -98,20 +99,21 @@ def main():
             # Once in a while, we save checkpoint, print statistics, and run evals.
             if step % steps_per_checkpoint == 0:
                 # Print statistics for the previous epoch.
-                print ("global step %d learning rate %.4f step-time %.2f "
+                print ("global step %d learning rate %.4f step-time %.2f loss %.4f"
                 % (model.global_step.eval(), model.learning_rate.eval(),
-                step_time))
+                step_time, loss))
                          # Decrease learning rate if no improvement was seen over last 3 times.
                 if len(previous_losses) > 2 and loss > max(previous_losses[-3:]):
                     sess.run(model.learning_rate_decay_op)
-                    previous_losses.append(loss)
-                    # Save checkpoint and zero timer and loss.
-                    checkpoint_path = os.path.join(checkpoint_dir, "sentiment.ckpt")
-                    model.saver.save(sess, checkpoint_path, global_step=model.global_step)
-                    step_time, loss = 0.0, 0.0
-                    # Run evals on development set and print their perplexity.
-                    inputs, targets, seq_lengths = model.getBatch(data[test_start_end_index[0]:test_start_end_index[1]])
-                    _, test_loss, _ = model.step(sess, inputs, targets, seq_lengths, True)
+                previous_losses.append(loss)
+                # Save checkpoint and zero timer and loss.
+                checkpoint_path = os.path.join(checkpoint_dir, "sentiment.ckpt")
+                model.saver.save(sess, checkpoint_path, global_step=model.global_step)
+                step_time, loss = 0.0, 0.0
+                # Run evals on development set and print their perplexity.
+                inputs, targets, seq_lengths = model.getBatch(data[test_start_end_index[0]:test_start_end_index[1]])
+                _, test_loss, _ = model.step(sess, inputs, targets, seq_lengths, True)
+                print "Test loss: {0}".format(test_loss)
                 sys.stdout.flush()
 
 def createModel(session, vocab_size):
