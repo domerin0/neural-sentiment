@@ -122,6 +122,7 @@ def createModel(session, vocab_size):
     model = models.sentiment.SentimentModel(vocab_size, hidden_size,
     dropout, num_layers, grad_clip, max_seq_length, batch_size,
     learning_rate, lr_decay_factor)
+    saveHyperParameters(vocab_size)
     ckpt = tf.train.get_checkpoint_state(checkpoint_dir)
     if ckpt and gfile.Exists(ckpt.model_checkpoint_path):
         print("Reading model parameters from %s" % ckpt.model_checkpoint_path)
@@ -141,11 +142,11 @@ makes it easier to store (and restore) the hyper parameters of the model.
 
 This only works because they are all numerical types.
 '''
-def saveHyperParameters():
+def saveHyperParameters(vocab_size):
     hParams = np.array([vocab_size, hidden_size,
     dropout, num_layers, grad_clip, max_seq_length, batch_size,
     learning_rate, lr_decay_factor])
-    path = os.path.join(checkpoint_dir, "hyper.params")
+    path = os.path.join(checkpoint_dir, "hyperparams.npy")
     np.save(path, hParams)
 
 

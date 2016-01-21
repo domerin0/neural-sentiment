@@ -88,7 +88,7 @@ This is a hack mostly, but I couldn't find another way to do this.
 Ultimately, I don't think is that bad.
 '''
 def restoreHyperParameters():
-    path = os.path.join(checkpoint_dir, "hyper.params")
+    path = os.path.join(checkpoint_dir, "hyperparams.npy")
     return np.load(path)
 
 
