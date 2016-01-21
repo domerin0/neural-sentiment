@@ -17,7 +17,7 @@ class SentimentModel(object):
 	lr_decay:rate at which to decayse learning rate
 	forward_only: whether to run backward pass or not
 	'''
-	def __init__(self, vocab_size, hidden_size,
+	def __init__(self, vocab_size, hidden_size, dropout,
 	num_layers, max_gradient_norm, max_seq_length, batch_size,
 	learning_rate, lr_decay, forward_only=False):
 
@@ -32,6 +32,7 @@ class SentimentModel(object):
 		self.seq_input = []
 		self.seq_lengths = []
 		self.targets = []
+		self.dropout = dropout
 
 		self.global_step = tf.Variable(0, trainable=False)
 		self.max_seq_length = max_seq_length
@@ -56,27 +57,31 @@ class SentimentModel(object):
 
 		#create hidden lstm layers
 		cell = rnn_cell.LSTMCell(hidden_size, hidden_size, initializer=initializer)
+		cell = rnn_cell.DropoutWrapper(cell, input_keep_prob=dropout)
 		self.cell = rnn_cell.MultiRNNCell([cell] * num_layers)
 		self.initial_state = self.cell.zero_state(batch_size, tf.float32)
-		self.outputs, self.states = rnn.rnn(self.cell, emb,
-		sequence_length=self.seq_lengths, dtype=tf.float32)
-
-		#self.cell = rnn_cell.EmbeddingWrapper(cell, self.vocab_size)
-
+		self.hidden_outputs, self.states = rnn.rnn(self.cell, emb, dtype=tf.float32)
 
 		#output logistic regression layer
-		w = tf.get_variable("proj_w", [hidden_size, 1])
-		b = tf.get_variable("proj_b", [1])
-		self.outputs = [tf.nn.sigmoid(tf.matmul(m, w) + b) for m in self.outputs]
 
-		#compute losses using mean square error
+		weights = tf.Variable(tf.random_normal([hidden_size,1], stddev=0.01))
+		bias = tf.Variable(tf.random_normal([1], stddev=0.01))
 
-		self.losses = [tf.reduce_mean(tf.square(self.targets[i] - self.outputs[i])) for i in range(len(self.targets))]
+		with tf.name_scope("output_proj") as scope:
+			self.outputs = [tf.nn.sigmoid(tf.matmul(m, weights)) for m in self.hidden_outputs]
+		w_hist = tf.histogram_summary("weights", weights)
+		b_hist = tf.histogram_summary("biases", bias)
+		#compute losses
+		self.losses = [tf.reduce_mean((-self.targets[i] * tf.log(self.outputs[i]))
+		- ((1 - self.targets[i]) * tf.log(1 - self.outputs[i])))
+		for i in range(len(self.targets))]
+		#self.losses = [tf.reduce_mean(tf.square(self.targets[i] - self.outputs[i])) for i in range(len(self.targets))]
 
 		params = tf.trainable_variables()
 		if not forward_only:
 			#self.gradient_norms = []
-			opt = tf.train.GradientDescentOptimizer(self.learning_rate)
+			with tf.name_scope("train") as scope:
+				opt = tf.train.GradientDescentOptimizer(self.learning_rate)
 			gradients = tf.gradients(self.losses, params)
 			clipped_gradients, norm = tf.clip_by_global_norm(gradients,
 			max_gradient_norm)
@@ -114,6 +119,7 @@ class SentimentModel(object):
 			self.batch_pointer += 1
 			self.batch_pointer = (len(data) / self.batch_size) % self.batch_pointer
 			targets = targets[start: start + self.batch_size]
+			targets = [(0.6 >= targets[i] and 1) or 0 for i in range(len(targets))]
 			seq_lengths = seq_lengths[start: start + self.batch_size]
 		else:
 			for j in range(len(targets)):
@@ -140,15 +146,15 @@ class SentimentModel(object):
 		input_feed = {}
 		import util.vocabmapping
 		vocab = util.vocabmapping.VocabMapping()
-		for i in xrange(self.batch_size):
+		for i in xrange(len(inputs)):
 			assert len(inputs[i]) == self.max_seq_length, "length of seq: {0}".format(str(len(inputs[i])))
 			input_feed[self.seq_input[i].name] = inputs[i]
 			input_feed[self.targets[i].name] = float(targets[i] / 10.0)
 		if not forward_only:
-			input_feed[self.seq_lengths.name] = seq_lengths
 			output_feed = [self.updates,self.gradient_norms, sum(self.losses) / len(inputs)]
 		else:
 			output_feed = [sum(self.losses) / len(inputs)]
+		input_feed[self.seq_lengths.name] = seq_lengths
 		for i in xrange(len(self.outputs)):
 			output_feed.append(self.outputs[i])
 
@@ -158,17 +164,3 @@ class SentimentModel(object):
 			return outputs[1], outputs[2], None
 		else:
 			return None, outputs[0], outputs[1:]
-
-
-	def predict(self, session, inputs):
-		'''
-		Inputs:
-		session: tensorflow session
-		inputs: list of list of ints representing tokens in review
-
-		Returns:
-		outputs: a float 0>=x<=1 indicating positive or negative
-		'''
-		feed = {early_stop:len(inputs), seq_input:inputs}
-		outputs = session.run(self.output_projection, feed)
-		return outputs[1:]

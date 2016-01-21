@@ -13,6 +13,8 @@ url = "http://ai.stanford.edu/~amaas/data/sentiment/aclImdb_v1.tar.gz"
 def run(max_seq_length):
     if not os.path.exists("data/"):
         os.makedirs("data/")
+    if not os.path.exists("data/checkpoints/"):
+        os.makedirs("data/checkpoints")
     if not os.path.isdir("data/aclImdb"):
         print "Data not found, downloading dataset..."
         fileName = downloadFile(url)
