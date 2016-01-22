@@ -42,6 +42,7 @@ checkpoint_dir: directory to store/restore checkpoints
 
 
 def main():
+    setNetworkParameters()
     vocab_mapping = util.vocabmapping.VocabMapping()
     with tf.Session() as sess:
         model = loadModel(sess, vocab_mapping.getSize())
@@ -57,14 +58,12 @@ def main():
         targets = [1]
         indices = np.array(indices + [vocab_mapping.getIndex("<PAD>") for j in range(model.max_seq_length - len(tokens))])
         inputs.append(indices)
+        print inputs
         assert len(targets) == len(inputs), "input len: {0}, target len: {1}".format(len(inputs), len(targets))
-        assert len(inputs[0]) == model.max_seq_length,"Error! length is: {0}".format(len(indices))
-        data = np.array(indices)
         _, _, output = model.step(sess, inputs, targets, seq_lengths, True)
-        print len(output)
-        print len(model.hidden_outputs)
         print(len(output[0]))
-        print "Value of sentiment: {0}".format(output[-1][seq_lengths[0]])
+        print len(output)
+        print "Value of sentiment: {0}".format(output[-1])
 
 
 def loadModel(session, vocab_size):

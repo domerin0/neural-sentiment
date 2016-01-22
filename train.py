@@ -30,9 +30,9 @@ max_seq_length = 500
 num_layers = 1
 batch_size = 25
 max_epoch = 150
-learning_rate = 0.001
-lr_decay_factor = 0.01
-steps_per_checkpoint = 10
+learning_rate = 0.1
+lr_decay_factor = 0.1
+steps_per_checkpoint = 1000
 checkpoint_dir = "data/checkpoints/"
 dropout = 1.0
 grad_clip = 5
@@ -60,9 +60,9 @@ def main():
 
     #create model
     print "Creating model with..."
-    print "Number of hidden layers: " + str(num_layers)
-    print "Number of units per layer: " + str(hidden_size)
-    print ""
+    print "Number of hidden layers: {0}".format(num_layers)
+    print "Number of units per layer: {0}".format(hidden_size)
+    print "Dropout: {0}".format(dropout)
     vocabmapping = util.vocabmapping.VocabMapping()
 
     vocab_size = vocabmapping.getSize()
@@ -95,8 +95,8 @@ def main():
             start_time = time.time()
             inputs, targets, seq_lengths = model.getBatch(data[train_start_end_index[0]:train_start_end_index[1]])
             _, step_loss, _ = model.step(sess, inputs, targets, seq_lengths)
-            step_time += (time.time() - start_time) / steps_per_checkpoint
-            loss += step_loss / steps_per_checkpoint
+            step_time += (time.time() - start_time) 
+            loss += step_loss
 
             # Once in a while, we save checkpoint, print statistics, and run evals.
             if step % steps_per_checkpoint == 0:
