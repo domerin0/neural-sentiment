@@ -65,22 +65,22 @@ class SentimentModel(object):
 		weights = tf.Variable(tf.random_normal([hidden_size,num_classes], stddev=0.01))
 		bias = tf.Variable(tf.random_normal([num_classes], stddev=0.01))
 
-		#with tf.name_scope("output_proj") as scope:
-		self.y = tf.matmul(self.hidden_outputs[-1], weights) + bias
-		#w_hist = tf.histogram_summary("weights", weights)
-		#b_hist = tf.histogram_summary("biases", bias)
+		with tf.name_scope("output_proj") as scope:
+			self.y = tf.matmul(self.hidden_outputs[-1], weights) + bias
+		w_hist = tf.histogram_summary("weights", weights)
+		b_hist = tf.histogram_summary("biases", bias)
 		#compute losses
-		#with tf.name_scope("loss") as scope:
-		self.losses = tf.reduce_mean(tf.nn.softmax_cross_entropy_with_logits(self.y, self.target))
+		with tf.name_scope("loss") as scope:
+			self.losses = tf.reduce_mean(tf.nn.softmax_cross_entropy_with_logits(self.y, self.target))
 
 		params = tf.trainable_variables()
 		if not forward_only:
 			#self.gradient_norms = []
-			#with tf.name_scope("train") as scope:
-			opt = tf.train.GradientDescentOptimizer(self.learning_rate)
+			with tf.name_scope("train") as scope:
+				opt = tf.train.GradientDescentOptimizer(self.learning_rate)
 			correct_prediction = tf.equal(tf.argmax(self.y,1), tf.argmax(self.target,1))
-			#with tf.name_scope("accuracy") as scope:
-			self.accuracy = tf.equal(tf.argmax(self.y,1), tf.argmax(self.target,1))
+			with tf.name_scope("accuracy") as scope:
+				self.accuracy = tf.equal(tf.argmax(self.y,1), tf.argmax(self.target,1))
 			gradients = tf.gradients(self.losses, params)
 			clipped_gradients, norm = tf.clip_by_global_norm(gradients,
 			max_gradient_norm)
