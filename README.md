@@ -50,7 +50,7 @@ When you first run train.py, it will download the data set, unzip, and process i
 
 After your model is trained you can run:
 
-`python sample.py text "Your text to sample here"` 
+`$ python sample.py text "Your text to sample here"` 
 
 It will return some number in the interval [0,1]. This number corresponds to a positive (1), or a negative (0) score.
 
