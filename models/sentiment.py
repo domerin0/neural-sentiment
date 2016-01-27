@@ -20,10 +20,9 @@ class SentimentModel(object):
 	def __init__(self, vocab_size, hidden_size, dropout,
 	num_layers, max_gradient_norm, max_seq_length, batch_size,
 	learning_rate, lr_decay, forward_only=False):
-
+		num_classes = 11
 		self.vocab_size = vocab_size
 		self.batch_size = batch_size
-		self.learning_rate = learning_rate
 		self.learning_rate = tf.Variable(float(learning_rate), trainable=False)
 		self.learning_rate_decay_op = self.learning_rate.assign(
 		self.learning_rate * lr_decay)
@@ -42,7 +41,7 @@ class SentimentModel(object):
 		for i in range(max_seq_length):
 			self.seq_input.append(tf.placeholder(tf.int32, shape=[None],
 			name="input{0}".format(i)))
-		self.targets = tf.placeholder(tf.float32, name="targets")
+		self.target = tf.placeholder(tf.float32, name="target", shape=[None,num_classes])
 		self.seq_lengths = tf.placeholder(tf.int32, shape=[None],
 		name="early_stop")
 
@@ -63,24 +62,25 @@ class SentimentModel(object):
 
 		#output logistic regression layer
 
-		weights = tf.Variable(tf.random_normal([hidden_size,1], stddev=0.01))
-		bias = tf.Variable(tf.random_normal([1], stddev=0.01))
+		weights = tf.Variable(tf.random_normal([hidden_size,num_classes], stddev=0.01))
+		bias = tf.Variable(tf.random_normal([num_classes], stddev=0.01))
 
-		with tf.name_scope("output_proj") as scope:
-			self.outputs = tf.nn.sigmoid(tf.matmul(self.hidden_outputs[-1], weights) + bias)
-		w_hist = tf.histogram_summary("weights", weights)
-		b_hist = tf.histogram_summary("biases", bias)
+		#with tf.name_scope("output_proj") as scope:
+		self.y = tf.matmul(self.hidden_outputs[-1], weights) + bias
+		#w_hist = tf.histogram_summary("weights", weights)
+		#b_hist = tf.histogram_summary("biases", bias)
 		#compute losses
-		#self.losses = [tf.reduce_mean((-self.targets[i] * tf.log(self.outputs[i]))
-		#- ((1 - self.targets[i]) * tf.log(1 - self.outputs[i])))
-		#for i in range(len(self.targets))]
-		self.losses = tf.reduce_mean(tf.square(self.targets - self.outputs))
+		#with tf.name_scope("loss") as scope:
+		self.losses = tf.reduce_mean(tf.nn.softmax_cross_entropy_with_logits(self.y, self.target))
 
 		params = tf.trainable_variables()
 		if not forward_only:
 			#self.gradient_norms = []
-			with tf.name_scope("train") as scope:
-				opt = tf.train.GradientDescentOptimizer(self.learning_rate)
+			#with tf.name_scope("train") as scope:
+			opt = tf.train.GradientDescentOptimizer(self.learning_rate)
+			correct_prediction = tf.equal(tf.argmax(self.y,1), tf.argmax(self.target,1))
+			#with tf.name_scope("accuracy") as scope:
+			self.accuracy = tf.equal(tf.argmax(self.y,1), tf.argmax(self.target,1))
 			gradients = tf.gradients(self.losses, params)
 			clipped_gradients, norm = tf.clip_by_global_norm(gradients,
 			max_gradient_norm)
@@ -103,27 +103,29 @@ class SentimentModel(object):
 		A numpy arrays for inputs, target, and seq_lengths
 
 		'''
+		start = self.batch_pointer * self.batch_size
 		seq_lengths = (data.transpose()[-1]).transpose()
 		targets = (data.transpose()[-2]).transpose()
+		onehot = np.zeros((len(targets), 11))
+		onehot[np.arange(len(targets)), targets] = 1
 		#cut off last two columns (score and seq length)
 		data = (data.transpose()[0:-2]).transpose()
 		batch_inputs = []
 		if not test_data:
-			start = self.batch_pointer * self.batch_size
 			for length_idx in xrange(self.max_seq_length):
 				  batch_inputs.append(np.array([data[batch_idx][length_idx]
 				for batch_idx in xrange(start, start + self.batch_size)], dtype=np.int32))
 			self.batch_pointer += 1
-			self.batch_pointer = (len(data) / self.batch_size) % self.batch_pointer
-			targets = targets[start: start + self.batch_size]
-			#targets = [(0.6 >= targets[i] and 1) or 0 for i in range(len(targets))]
+			self.batch_pointer = self.batch_pointer % (len(data) / self.batch_size)
+			onehot = onehot[start: start + self.batch_size]
+			assert len(batch_inputs[0]) == self.batch_size
 			seq_lengths = seq_lengths[start: start + self.batch_size]
 		else:
 			for length_idx in xrange(self.max_seq_length):
 				  batch_inputs.append(
 				  np.array([data[batch_idx][length_idx]
 				for batch_idx in xrange(len(targets))], dtype=np.int32))
-		return batch_inputs, targets, seq_lengths
+		return batch_inputs, onehot, seq_lengths
 
 
 	def step(self, session, inputs, targets, seq_lengths, forward_only=False):
@@ -135,25 +137,22 @@ class SentimentModel(object):
 		seq_lengths: list of sequence lengths, provided at runtime to prevent need for padding
 
 		Returns:
-		gradient norm, loss, outputs
+		accuracy, loss, gradient norms
+		or (in forward only):
+		accuracy, loss, outputs
 		'''
-
 		input_feed = {}
-		import util.vocabmapping
-		vocab = util.vocabmapping.VocabMapping()
 		for i in xrange(self.max_seq_length):
 			input_feed[self.seq_input[i].name] = inputs[i]
-		input_feed[self.targets.name] = targets
+		input_feed[self.target.name] = targets
 		if not forward_only:
-			output_feed = [self.updates,self.gradient_norms, self.losses]
+			output_feed = [self.accuracy, self.losses, self.gradient_norms]
 		else:
-			output_feed = [self.losses]
+			output_feed = [self.accuracy, self.losses, self.y]
 		input_feed[self.seq_lengths.name] = seq_lengths
-		output_feed.append(self.outputs)
-
 		outputs = session.run(output_feed, input_feed)
 
 		if not forward_only:
-			return outputs[1], outputs[2], None
+			return outputs[0], outputs[1], outputs[2]
 		else:
-			return None, outputs[0], outputs[1:]
+			return outputs[0], outputs[1], outputs[2]

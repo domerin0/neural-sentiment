@@ -2,11 +2,8 @@
 I used mainly the tensorflow translation example:
 https://github.com/tensorflow/tensorflow/
 
-and loosely based this off the sentiment analyzer here:
+and semi-based this off the sentiment analyzer here:
 http://deeplearning.net/tutorial/lstm.html
-Most notably, I changed the embedding methodology, and of course
-did it in tensorflow instead of theano.
-
 
 Written by: Dominik Kaukinen
 '''
@@ -28,11 +25,11 @@ import util.vocabmapping
 hidden_size = 128
 max_seq_length = 500
 num_layers = 1
-batch_size = 25
+batch_size = 35
 max_epoch = 150
 learning_rate = 0.1
 lr_decay_factor = 0.1
-steps_per_checkpoint = 1000
+steps_per_checkpoint = 50
 checkpoint_dir = "data/checkpoints/"
 dropout = 1.0
 grad_clip = 5
@@ -78,7 +75,8 @@ def main():
     # 70/30 splir for train/test
     train_start_end_index = [0, int(0.7 * len(data))]
     test_start_end_index = [int(0.7 * len(data)) + 1, len(data) - 1]
-
+    print "Number of training examples per batch: {0}, \
+    number of batches be epoch: {1}".format(batch_size,num_batches)
     with tf.Session() as sess:
         model = createModel(sess, vocab_size)
     #train model and save to checkpoint
@@ -90,13 +88,17 @@ def main():
 
         step_time, loss = 0.0, 0.0
         previous_losses = []
-        for step in xrange(num_batches * max_epoch):
+        tot_steps = num_batches * max_epoch
+        #starting at step 1 to prevent test set from running after first batch
+        for step in xrange(1, tot_steps):
             # Get a batch and make a step.
+            print "-------Step {0}/{1}------".format(step,tot_steps)
             start_time = time.time()
             inputs, targets, seq_lengths = model.getBatch(data[train_start_end_index[0]:train_start_end_index[1]])
+
             _, step_loss, _ = model.step(sess, inputs, targets, seq_lengths)
-            step_time += (time.time() - start_time) 
-            loss += step_loss
+            step_time += (time.time() - start_time) / steps_per_checkpoint
+            loss += step_loss / steps_per_checkpoint
 
             # Once in a while, we save checkpoint, print statistics, and run evals.
             if step % steps_per_checkpoint == 0:
@@ -113,7 +115,8 @@ def main():
                 model.saver.save(sess, checkpoint_path, global_step=model.global_step)
                 step_time, loss = 0.0, 0.0
                 # Run evals on development set and print their perplexity.
-                inputs, targets, seq_lengths = model.getBatch(data[test_start_end_index[0]:test_start_end_index[1]])
+                inputs, targets, seq_lengths = model.getBatch(data[test_start_end_index[0]:test_start_end_index[1]], True)
+                print "Running test set"
                 _, test_loss, _ = model.step(sess, inputs, targets, seq_lengths, True)
                 print "Test loss: {0}".format(test_loss)
                 sys.stdout.flush()

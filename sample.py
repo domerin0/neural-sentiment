@@ -2,11 +2,8 @@
 I used mainly the tensorflow translation example:
 https://github.com/tensorflow/tensorflow/
 
-and loosely based this off the sentiment analyzer here:
+and semi-based this off the sentiment analyzer here:
 http://deeplearning.net/tutorial/lstm.html
-Most notably, I changed the embedding methodology, and of course
-did it in tensorflow instead of theano.
-
 
 Written by: Dominik Kaukinen
 '''
