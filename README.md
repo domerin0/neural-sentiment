@@ -5,7 +5,7 @@ A sentiment analyzer using deep rnns, built with TensorFlow.
 
 1. Python 2.7.x
 2. Install [TensorFlow](https://www.tensorflow.org/versions/master/get_started/os_setup.html)
-3. `sudo pip install nltk`
+3. `$ sudo pip install nltk`
 
 Next you will need to download the nltk tokenizer dataset:
 
@@ -21,11 +21,11 @@ You can exit the python terminal once the download is done, your dependencies wi
 
 To run with preset hyper-parameters just run:
 
-`python train.py`
+`$ python train.py`
 
 To try other models with different hyper parameters you can do something like:
 
-`python train.py batch_size 125 max_seq_length 350 dropout 0.9 `
+`$ python train.py batch_size 125 max_seq_length 350 dropout 0.9 `
 
 The modifiable hyper-parameters are:
 
@@ -64,7 +64,7 @@ I've begun to implement tensorboard variables and histograms.
 
 You can access tensorboard with this application by using:
 
-`tensorboard --logdir=/tmp/tb_logs/`
+`$ tensorboard --logdir=/tmp/tb_logs/`
 
 Then copy and paste the localhost url your terminal window gives you, into your browser of choice.
 
