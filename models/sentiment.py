@@ -80,13 +80,15 @@ class SentimentModel(object):
 				opt = tf.train.GradientDescentOptimizer(self.learning_rate)
 			correct_prediction = tf.equal(tf.argmax(self.y,1), tf.argmax(self.target,1))
 			with tf.name_scope("accuracy") as scope:
-				self.accuracy = tf.equal(tf.argmax(self.y,1), tf.argmax(self.target,1))
+				self.accuracy = tf.reduce_mean(tf.cast(correct_prediction, tf.float32))
 			gradients = tf.gradients(self.losses, params)
 			clipped_gradients, norm = tf.clip_by_global_norm(gradients,
 			max_gradient_norm)
 			self.gradient_norms = norm
 			self.updates = opt.apply_gradients(
 			zip(clipped_gradients, params), global_step=self.global_step)
+		else:
+			self.y = tf.nn.softmax(self.y)
 		self.saver = tf.train.Saver(tf.all_variables())
 
 	def getBatch(self, data, test_data=False):
@@ -139,7 +141,7 @@ class SentimentModel(object):
 		Returns:
 		accuracy, loss, gradient norms
 		or (in forward only):
-		accuracy, loss, outputs
+		none, loss, outputs
 		'''
 		input_feed = {}
 		for i in xrange(self.max_seq_length):
@@ -148,11 +150,11 @@ class SentimentModel(object):
 		if not forward_only:
 			output_feed = [self.accuracy, self.losses, self.gradient_norms]
 		else:
-			output_feed = [self.accuracy, self.losses, self.y]
+			output_feed = [self.losses, self.y]
 		input_feed[self.seq_lengths.name] = seq_lengths
 		outputs = session.run(output_feed, input_feed)
 
 		if not forward_only:
 			return outputs[0], outputs[1], outputs[2]
 		else:
-			return outputs[0], outputs[1], outputs[2]
+			return None, outputs[0], outputs[1]

@@ -25,13 +25,13 @@ import util.vocabmapping
 hidden_size = 128
 max_seq_length = 500
 num_layers = 1
-batch_size = 35
-max_epoch = 150
+batch_size = 25
+max_epoch = 5000
 learning_rate = 0.1
-lr_decay_factor = 0.1
+lr_decay_factor = 0.0.001
 steps_per_checkpoint = 50
 checkpoint_dir = "data/checkpoints/"
-dropout = 1.0
+dropout = 0.5
 grad_clip = 5
 string_args = [("hidden_size", "int"), ("num_layers", "int"), ("batch_size", "int"),
 ("max_epoch", "int"),("learning_rate", "float"), ("steps_per_checkpoint", "int"),

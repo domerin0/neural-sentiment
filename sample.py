@@ -51,17 +51,19 @@ def main():
         indices = [vocab_mapping.getIndex(j) for j in tokens]
         seq_lengths = [len(indices)]
         inputs = []
+        indices = np.array(indices + [vocab_mapping.getIndex("<PAD>") for j in range(model.max_seq_length - len(tokens))])
         for length_idx in xrange(model.max_seq_length):
               inputs.append(
-              np.array([indices[0][length_idx]], dtype=np.int32))
+              np.array([indices[length_idx]], dtype=np.int32))
         #dummy target, we don't really need this.
         targets = [1]
-        indices = np.array(indices + [vocab_mapping.getIndex("<PAD>") for j in range(model.max_seq_length - len(tokens))])
-        assert len(targets) == len(inputs), "input len: {0}, target len: {1}".format(len(inputs), len(targets))
-        _, _, output = model.step(sess, inputs, targets, seq_lengths, True)
-        print(len(output[0]))
-        print len(output)
-        print "Value of sentiment: {0}".format(output[-1])
+        onehot = np.zeros((len(targets), 11))
+        onehot[np.arange(len(targets)), targets] = 1
+        #assert len(targets) == len(inputs), "input len: {0}, target len: {1}".format(len(inputs), len(targets))
+        _, _, output = model.step(sess, inputs, onehot, seq_lengths, True)
+        idx = output[0].argmax(axis=0)
+        print output[0]
+        print "Value of sentiment: {0} with probability: {1}".format(idx, output[0][idx] / np.sum(output[0]))
 
 
 def loadModel(session, vocab_size):
