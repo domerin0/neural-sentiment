@@ -103,7 +103,6 @@ class SentimentModel(object):
 		A numpy arrays for inputs, target, and seq_lengths
 
 		'''
-		start = self.batch_pointer * self.batch_size
 		seq_lengths = (data.transpose()[-1]).transpose()
 		targets = (data.transpose()[-2]).transpose()
 		onehot = np.zeros((len(targets), 11))
@@ -112,6 +111,7 @@ class SentimentModel(object):
 		data = (data.transpose()[0:-2]).transpose()
 		batch_inputs = []
 		if not test_data:
+			start = self.batch_pointer * self.batch_size
 			for length_idx in xrange(self.max_seq_length):
 				  batch_inputs.append(np.array([data[batch_idx][length_idx]
 				for batch_idx in xrange(start, start + self.batch_size)], dtype=np.int32))

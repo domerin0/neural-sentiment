@@ -51,11 +51,12 @@ def main():
         indices = [vocab_mapping.getIndex(j) for j in tokens]
         seq_lengths = [len(indices)]
         inputs = []
+        for length_idx in xrange(model.max_seq_length):
+              inputs.append(
+              np.array([indices[0][length_idx]], dtype=np.int32))
         #dummy target, we don't really need this.
         targets = [1]
         indices = np.array(indices + [vocab_mapping.getIndex("<PAD>") for j in range(model.max_seq_length - len(tokens))])
-        inputs.append(indices)
-        print inputs
         assert len(targets) == len(inputs), "input len: {0}, target len: {1}".format(len(inputs), len(targets))
         _, _, output = model.step(sess, inputs, targets, seq_lengths, True)
         print(len(output[0]))
