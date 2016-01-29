@@ -20,7 +20,7 @@ class SentimentModel(object):
 	def __init__(self, vocab_size, hidden_size, dropout,
 	num_layers, max_gradient_norm, max_seq_length, batch_size,
 	learning_rate, lr_decay, forward_only=False):
-		num_classes = 11
+		self.num_classes =2
 		self.vocab_size = vocab_size
 		self.batch_size = batch_size
 		self.learning_rate = tf.Variable(float(learning_rate), trainable=False)
@@ -41,7 +41,7 @@ class SentimentModel(object):
 		for i in range(max_seq_length):
 			self.seq_input.append(tf.placeholder(tf.int32, shape=[None],
 			name="input{0}".format(i)))
-		self.target = tf.placeholder(tf.float32, name="target", shape=[None,num_classes])
+		self.target = tf.placeholder(tf.float32, name="target", shape=[None,self.num_classes])
 		self.seq_lengths = tf.placeholder(tf.int32, shape=[None],
 		name="early_stop")
 
@@ -62,34 +62,39 @@ class SentimentModel(object):
 
 		#output logistic regression layer
 
-		weights = tf.Variable(tf.random_normal([hidden_size,num_classes], stddev=0.01))
-		bias = tf.Variable(tf.random_normal([num_classes], stddev=0.01))
+		weights = tf.Variable(tf.random_normal([hidden_size * 2,self.num_classes], stddev=0.01))
+		bias = tf.Variable(tf.random_normal([self.num_classes], stddev=0.01))
 
 		with tf.name_scope("output_proj") as scope:
-			self.y = tf.matmul(self.hidden_outputs[-1], weights) + bias
+			self.y = tf.matmul(self.states[-1], weights) + bias
 		w_hist = tf.histogram_summary("weights", weights)
 		b_hist = tf.histogram_summary("biases", bias)
-		#compute losses
+		#compute losses, minimize cross entropy
 		with tf.name_scope("loss") as scope:
 			self.losses = tf.reduce_mean(tf.nn.softmax_cross_entropy_with_logits(self.y, self.target))
+			loss_summ = tf.scalar_summary("loss", self.losses)
 
 		params = tf.trainable_variables()
 		if not forward_only:
 			#self.gradient_norms = []
 			with tf.name_scope("train") as scope:
-				opt = tf.train.GradientDescentOptimizer(self.learning_rate)
+				opt = tf.train.GradientDescentOptimizer(self.learning_rate).minimize(self.losses)
 			correct_prediction = tf.equal(tf.argmax(self.y,1), tf.argmax(self.target,1))
 			with tf.name_scope("accuracy") as scope:
 				self.accuracy = tf.reduce_mean(tf.cast(correct_prediction, tf.float32))
-			gradients = tf.gradients(self.losses, params)
-			clipped_gradients, norm = tf.clip_by_global_norm(gradients,
-			max_gradient_norm)
-			self.gradient_norms = norm
-			self.updates = opt.apply_gradients(
-			zip(clipped_gradients, params), global_step=self.global_step)
+				acc_summ = tf.scalar_summary("accuracy", self.accuracy)
+			#gradients = tf.gradients(self.losses, params)
+			#clipped_gradients, norm = tf.clip_by_global_norm(gradients,
+			#max_gradient_norm)
+			#with tf.name_scope("grad_norms") as scope:
+			#	self.gradient_norms = norm
+			#	grad_summ = tf.scalar_summary("grad_norms", self.gradient_norms)
+			#self.updates = opt.apply_gradients(
+			#zip(clipped_gradients, params), global_step=self.global_step)
 		else:
 			self.y = tf.nn.softmax(self.y)
 		self.saver = tf.train.Saver(tf.all_variables())
+		self.merged = tf.merge_all_summaries()
 
 	def getBatch(self, data, test_data=False):
 		'''
@@ -107,7 +112,7 @@ class SentimentModel(object):
 		'''
 		seq_lengths = (data.transpose()[-1]).transpose()
 		targets = (data.transpose()[-2]).transpose()
-		onehot = np.zeros((len(targets), 11))
+		onehot = np.zeros((len(targets), self.num_classes))
 		onehot[np.arange(len(targets)), targets] = 1
 		#cut off last two columns (score and seq length)
 		data = (data.transpose()[0:-2]).transpose()
@@ -148,13 +153,13 @@ class SentimentModel(object):
 			input_feed[self.seq_input[i].name] = inputs[i]
 		input_feed[self.target.name] = targets
 		if not forward_only:
-			output_feed = [self.accuracy, self.losses, self.gradient_norms]
+			output_feed = [self.merged, self.losses]
 		else:
-			output_feed = [self.losses, self.y]
+			output_feed = [self.accuracy, self.losses, self.y]
 		input_feed[self.seq_lengths.name] = seq_lengths
 		outputs = session.run(output_feed, input_feed)
 
 		if not forward_only:
-			return outputs[0], outputs[1], outputs[2]
+			return outputs[0], outputs[1], None
 		else:
-			return None, outputs[0], outputs[1]
+			return outputs[0], outputs[1], outputs[2]

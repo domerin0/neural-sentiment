@@ -23,15 +23,15 @@ import util.vocabmapping
 
 #Defaults for network parameters
 hidden_size = 128
-max_seq_length = 500
+max_seq_length = 100
 num_layers = 1
 batch_size = 25
 max_epoch = 5000
-learning_rate = 0.1
-lr_decay_factor = 0.0.001
+learning_rate = 0.0001
+lr_decay_factor = 0.97
 steps_per_checkpoint = 50
 checkpoint_dir = "data/checkpoints/"
-dropout = 0.5
+dropout = 0.8
 grad_clip = 5
 string_args = [("hidden_size", "int"), ("num_layers", "int"), ("batch_size", "int"),
 ("max_epoch", "int"),("learning_rate", "float"), ("steps_per_checkpoint", "int"),
@@ -78,6 +78,7 @@ def main():
     print "Number of training examples per batch: {0}, \
     number of batches be epoch: {1}".format(batch_size,num_batches)
     with tf.Session() as sess:
+        writer = tf.train.SummaryWriter("/tmp/tb_logs", sess.graph_def)
         model = createModel(sess, vocab_size)
     #train model and save to checkpoint
         print "Beggining training..."
@@ -96,17 +97,20 @@ def main():
             start_time = time.time()
             inputs, targets, seq_lengths = model.getBatch(data[train_start_end_index[0]:train_start_end_index[1]])
 
-            _, step_loss, _ = model.step(sess, inputs, targets, seq_lengths)
+            str_summary, step_loss, _ = model.step(sess, inputs, targets, seq_lengths)
+
             step_time += (time.time() - start_time) / steps_per_checkpoint
             loss += step_loss / steps_per_checkpoint
 
             # Once in a while, we save checkpoint, print statistics, and run evals.
             if step % steps_per_checkpoint == 0:
+                writer.add_summary(str_summary, step)
+
                 # Print statistics for the previous epoch.
                 print ("global step %d learning rate %.4f step-time %.2f loss %.4f"
                 % (model.global_step.eval(), model.learning_rate.eval(),
                 step_time, loss))
-                         # Decrease learning rate if no improvement was seen over last 3 times.
+                # Decrease learning rate if no improvement was seen over last 3 times.
                 if len(previous_losses) > 2 and loss > max(previous_losses[-3:]):
                     sess.run(model.learning_rate_decay_op)
                 previous_losses.append(loss)
@@ -117,8 +121,8 @@ def main():
                 # Run evals on development set and print their perplexity.
                 inputs, targets, seq_lengths = model.getBatch(data[test_start_end_index[0]:test_start_end_index[1]], True)
                 print "Running test set"
-                _, test_loss, _ = model.step(sess, inputs, targets, seq_lengths, True)
-                print "Test loss: {0}".format(test_loss)
+                accuracy, test_loss, _ = model.step(sess, inputs, targets, seq_lengths, True)
+                print "Test loss: {0} Accuracy: {1}".format(test_loss, accuracy)
                 sys.stdout.flush()
 
 def createModel(session, vocab_size):
@@ -133,9 +137,6 @@ def createModel(session, vocab_size):
     else:
         print("Created model with fresh parameters.")
         session.run(tf.initialize_all_variables())
-        	#write to tensorboard log
-    	merged = tf.merge_all_summaries()
-    	writer = tf.train.SummaryWriter("/tmp/tb_logs", session.graph_def)
     return model
 
 '''

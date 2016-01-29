@@ -73,7 +73,10 @@ def createProcessedDataFile(vocab_mapping, directory, pid, max_seq_length, lock)
                 indices = indices + [vocab_mapping.getIndex("<PAD>") for i in range(max_seq_length - len(indices))]
             else:
                 indices = indices[0:max_seq_length]
-        indices.append(int(score) - 1)
+        if "pos" in directory:
+            indices.append(1)
+        else:
+            indices.append(0)
         indices.append(min(numTokens, max_seq_length))
         assert len(indices) == max_seq_length + 2, str(len(indices))
         data = np.vstack((data, indices))
