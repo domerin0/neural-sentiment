@@ -10,7 +10,7 @@ dirs = ["data/aclImdb/test/pos", "data/aclImdb/test/neg", "data/aclImdb/train/po
 url = "http://ai.stanford.edu/~amaas/data/sentiment/aclImdb_v1.tar.gz"
 
 
-def run(max_seq_length):
+def run(max_seq_length, max_vocab_size):
     if not os.path.exists("data/"):
         os.makedirs("data/")
     if not os.path.exists("data/checkpoints/"):
@@ -27,7 +27,7 @@ def run(max_seq_length):
         print "vocab mapping found..."
     else:
         print "no vocab mapping found, running preprocessor..."
-        createVocab(dirs)
+        createVocab(dirs, max_vocab_size)
     if not os.path.exists("data/processed"):
         os.makedirs("data/processed/")
         print "No processed data file found, running preprocessor..."
@@ -73,7 +73,10 @@ def createProcessedDataFile(vocab_mapping, directory, pid, max_seq_length, lock)
                 indices = indices + [vocab_mapping.getIndex("<PAD>") for i in range(max_seq_length - len(indices))]
             else:
                 indices = indices[0:max_seq_length]
-        indices.append(int(score) - 1)
+        if "pos" in directory:
+            indices.append(1)
+        else:
+            indices.append(0)
         indices.append(min(numTokens, max_seq_length))
         assert len(indices) == max_seq_length + 2, str(len(indices))
         data = np.vstack((data, indices))
@@ -141,7 +144,7 @@ def saveData(npArray, index):
 '''
 create vocab mapping file
 '''
-def createVocab(dirs):
+def createVocab(dirs, max_vocab_size):
     print "Creating vocab mapping..."
     dic = {}
     for d in dirs:
@@ -160,7 +163,7 @@ def createVocab(dirs):
         d[w] = counter
         counter += 1
         #take most frequent 50k tokens
-        if counter >=50000:
+        if counter >=max_vocab_size:
             break
     #add out of vocab token and pad token
     d["<UNK>"] = counter
