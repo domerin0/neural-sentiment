@@ -22,16 +22,16 @@ import models.sentiment
 import util.vocabmapping
 
 #Defaults for network parameters
-hidden_size = 128
+hidden_size = 110
 max_seq_length = 100
 num_layers = 1
-batch_size = 25
+batch_size = 15
 max_epoch = 5000
-learning_rate = 0.0001
+learning_rate = 0.001
 lr_decay_factor = 0.97
-steps_per_checkpoint = 150
+steps_per_checkpoint = 200
 checkpoint_dir = "data/checkpoints/"
-dropout = 0.8
+dropout = 0.9
 grad_clip = 5
 max_vocab_size = 20000
 string_args = [("hidden_size", "int"), ("num_layers", "int"), ("batch_size", "int"),
@@ -111,7 +111,7 @@ def main():
                 writer.add_summary(str_summary, step)
 
                 # Print statistics for the previous epoch.
-                print ("global step %d learning rate %.4f step-time %.2f loss %.4f"
+                print ("global step %d learning rate %.7f step-time %.2f loss %.4f"
                 % (model.global_step.eval(), model.learning_rate.eval(),
                 step_time, loss))
                 # Decrease learning rate if no improvement was seen over last 3 times.
