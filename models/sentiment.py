@@ -31,7 +31,7 @@ class SentimentModel(object):
 		self.seq_input = []
 		self.seq_lengths = []
 		self.dropout = dropout
-
+		self.max_gradient_norm = max_gradient_norm
 		self.global_step = tf.Variable(0, trainable=False)
 		self.max_seq_length = max_seq_length
 
@@ -67,34 +67,30 @@ class SentimentModel(object):
 
 		with tf.name_scope("output_proj") as scope:
 			self.y = tf.matmul(self.states[-1], weights) + bias
-		w_hist = tf.histogram_summary("weights", weights)
-		b_hist = tf.histogram_summary("biases", bias)
+		#w_hist = tf.histogram_summary("weights", weights)
+		#b_hist = tf.histogram_summary("biases", bias)
 		#compute losses, minimize cross entropy
 		with tf.name_scope("loss") as scope:
+			#self.losses = -tf.reduce_sum(self.target*tf.log(self.y))
 			self.losses = tf.reduce_mean(tf.nn.softmax_cross_entropy_with_logits(self.y, self.target))
 			loss_summ = tf.scalar_summary("loss", self.losses)
-
+		self.y = tf.nn.softmax(self.y)
+		correct_prediction = tf.equal(tf.argmax(self.y,1), tf.argmax(self.target,1))
+		with tf.name_scope("accuracy") as scope:
+			self.accuracy = tf.reduce_mean(tf.cast(correct_prediction, tf.float32))
+			acc_summ = tf.scalar_summary("accuracy", self.accuracy)
 		params = tf.trainable_variables()
 		if not forward_only:
-			#self.gradient_norms = []
 			with tf.name_scope("train") as scope:
-				opt = tf.train.GradientDescentOptimizer(self.learning_rate).minimize(self.losses)
-			correct_prediction = tf.equal(tf.argmax(self.y,1), tf.argmax(self.target,1))
-			with tf.name_scope("accuracy") as scope:
-				self.accuracy = tf.reduce_mean(tf.cast(correct_prediction, tf.float32))
-				acc_summ = tf.scalar_summary("accuracy", self.accuracy)
-			#gradients = tf.gradients(self.losses, params)
-			#clipped_gradients, norm = tf.clip_by_global_norm(gradients,
-			#max_gradient_norm)
-			#with tf.name_scope("grad_norms") as scope:
-			#	self.gradient_norms = norm
-			#	grad_summ = tf.scalar_summary("grad_norms", self.gradient_norms)
-			#self.updates = opt.apply_gradients(
-			#zip(clipped_gradients, params), global_step=self.global_step)
-		else:
-			self.y = tf.nn.softmax(self.y)
-		self.saver = tf.train.Saver(tf.all_variables())
-		self.merged = tf.merge_all_summaries()
+				opt = tf.train.AdamOptimizer(self.learning_rate)#.minimize(self.losses)
+			gradients = tf.gradients(self.losses, params)
+			clipped_gradients, norm = tf.clip_by_global_norm(gradients, self.max_gradient_norm)
+			with tf.name_scope("grad_norms") as scope:
+				self.gradient_norms = norm
+				grad_summ = tf.scalar_summary("grad_norms", self.gradient_norms)
+			self.update = opt.apply_gradients(zip(clipped_gradients, params), global_step=self.global_step)
+			self.saver = tf.train.Saver(tf.all_variables())
+			self.merged = tf.merge_all_summaries()
 
 	def getBatch(self, data, test_data=False):
 		'''
@@ -153,7 +149,7 @@ class SentimentModel(object):
 			input_feed[self.seq_input[i].name] = inputs[i]
 		input_feed[self.target.name] = targets
 		if not forward_only:
-			output_feed = [self.merged, self.losses]
+			output_feed = [self.merged, self.losses, self.update]
 		else:
 			output_feed = [self.accuracy, self.losses, self.y]
 		input_feed[self.seq_lengths.name] = seq_lengths

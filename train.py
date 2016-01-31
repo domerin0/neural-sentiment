@@ -22,21 +22,24 @@ import models.sentiment
 import util.vocabmapping
 
 #Defaults for network parameters
-hidden_size = 128
+hidden_size = 110
 max_seq_length = 100
 num_layers = 1
-batch_size = 25
+batch_size = 15
 max_epoch = 5000
-learning_rate = 0.0001
+learning_rate = 0.001
 lr_decay_factor = 0.97
-steps_per_checkpoint = 50
+steps_per_checkpoint = 200
 checkpoint_dir = "data/checkpoints/"
-dropout = 0.8
+dropout = 0.9
 grad_clip = 5
+max_vocab_size = 20000
 string_args = [("hidden_size", "int"), ("num_layers", "int"), ("batch_size", "int"),
 ("max_epoch", "int"),("learning_rate", "float"), ("steps_per_checkpoint", "int"),
 ("lr_decay_factor", "float"), ("max_seq_length", "int"),
-("checkpoint_dir","string"), ("dropout", "float"), ("grad_clip", "int")]
+("checkpoint_dir","string"), ("dropout", "float"), ("grad_clip", "int"),
+("max_vocab_size", "int")]
+
 x = '''
 cmd line args will be:
 hidden_size: number of hidden units in hidden layers
@@ -50,10 +53,11 @@ max_seq_length: maximum length of input token sequence
 checkpoint_dir: directory to store/restore checkpoints
 dropout: probability of hidden inputs being removed
 grad_clip: max gradient norm
+max_vocab_size: maximum size of source vocab
 '''
 def main():
     setNetworkParameters()
-    util.dataprocessor.run(max_seq_length)
+    util.dataprocessor.run(max_seq_length, max_vocab_size)
 
     #create model
     print "Creating model with..."
@@ -63,7 +67,7 @@ def main():
     vocabmapping = util.vocabmapping.VocabMapping()
 
     vocab_size = vocabmapping.getSize()
-
+    print "Vocab size is: {0}".format(vocab_size)
     path = "data/processed/"
     infile = [f for f in os.listdir(path) if os.path.isfile(os.path.join(path, f))]
     #randomize data order
@@ -93,8 +97,8 @@ def main():
         #starting at step 1 to prevent test set from running after first batch
         for step in xrange(1, tot_steps):
             # Get a batch and make a step.
-            print "-------Step {0}/{1}------".format(step,tot_steps)
             start_time = time.time()
+
             inputs, targets, seq_lengths = model.getBatch(data[train_start_end_index[0]:train_start_end_index[1]])
 
             str_summary, step_loss, _ = model.step(sess, inputs, targets, seq_lengths)
@@ -107,7 +111,7 @@ def main():
                 writer.add_summary(str_summary, step)
 
                 # Print statistics for the previous epoch.
-                print ("global step %d learning rate %.4f step-time %.2f loss %.4f"
+                print ("global step %d learning rate %.7f step-time %.2f loss %.4f"
                 % (model.global_step.eval(), model.learning_rate.eval(),
                 step_time, loss))
                 # Decrease learning rate if no improvement was seen over last 3 times.
@@ -123,6 +127,7 @@ def main():
                 print "Running test set"
                 accuracy, test_loss, _ = model.step(sess, inputs, targets, seq_lengths, True)
                 print "Test loss: {0} Accuracy: {1}".format(test_loss, accuracy)
+                print "-------Step {0}/{1}------".format(step,tot_steps)
                 sys.stdout.flush()
 
 def createModel(session, vocab_size):
