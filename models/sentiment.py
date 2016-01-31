@@ -31,7 +31,7 @@ class SentimentModel(object):
 		self.seq_input = []
 		self.seq_lengths = []
 		self.dropout = dropout
-
+		self.max_gradient_norm = max_gradient_norm
 		self.global_step = tf.Variable(0, trainable=False)
 		self.max_seq_length = max_seq_length
 
@@ -62,15 +62,15 @@ class SentimentModel(object):
 
 		#output logistic regression layer
 
-		weights = tf.Variable(tf.random_normal([hidden_size * 2,self.num_classes], stddev=0.01))
+		weights = tf.Variable(tf.random_normal([hidden_size,self.num_classes], stddev=0.01))
 		bias = tf.Variable(tf.random_normal([self.num_classes], stddev=0.01))
 
 		with tf.name_scope("output_proj") as scope:
-			self.y = tf.matmul(self.states[-1], weights) + bias
+			last_state = tf.slice(self.states[-1], [0, hidden_size*(num_layers-1)], [-1, hidden_size])
+			self.y = tf.matmul(last_state, weights) + bias
 		#w_hist = tf.histogram_summary("weights", weights)
 		#b_hist = tf.histogram_summary("biases", bias)
 		#compute losses, minimize cross entropy
-		#self.y = tf.nn.softmax(self.y)
 		with tf.name_scope("loss") as scope:
 			#self.losses = -tf.reduce_sum(self.target*tf.log(self.y))
 			self.losses = tf.reduce_mean(tf.nn.softmax_cross_entropy_with_logits(self.y, self.target))
@@ -83,10 +83,9 @@ class SentimentModel(object):
 		params = tf.trainable_variables()
 		if not forward_only:
 			with tf.name_scope("train") as scope:
-				opt = tf.train.GradientDescentOptimizer(self.learning_rate)#.minimize(self.losses)
+				opt = tf.train.AdamOptimizer(self.learning_rate)#.minimize(self.losses)
 			gradients = tf.gradients(self.losses, params)
-			clipped_gradients, norm = tf.clip_by_global_norm(gradients,
-			max_gradient_norm)
+			clipped_gradients, norm = tf.clip_by_global_norm(gradients, self.max_gradient_norm)
 			with tf.name_scope("grad_norms") as scope:
 				self.gradient_norms = norm
 				grad_summ = tf.scalar_summary("grad_norms", self.gradient_norms)
@@ -156,7 +155,6 @@ class SentimentModel(object):
 			output_feed = [self.accuracy, self.losses, self.y]
 		input_feed[self.seq_lengths.name] = seq_lengths
 		outputs = session.run(output_feed, input_feed)
-
 		if not forward_only:
 			return outputs[0], outputs[1], None
 		else:
