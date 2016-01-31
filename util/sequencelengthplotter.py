@@ -8,10 +8,13 @@ This is used to help determine the bucket sizes to be used in the main program.
 import matplotlib.mlab as mlab
 import matplotlib.pyplot as plt
 import nltk
+import sys
 import numpy as np
 import os
 
 dirs = ["data/aclImdb/test/pos", "data/aclImdb/test/neg", "data/aclImdb/train/pos", "data/aclImdb/train/neg"]
+num_bins = 50
+string_args = [("num_bins", "int")]
 
 def main():
     lengths = []
@@ -35,7 +38,6 @@ def main():
     mu = np.std(lengths)
     sigma = np.mean(lengths)
     x = np.array(lengths)
-    num_bins = 50
     n, bins, patches = plt.hist(x,  num_bins, facecolor='green', alpha=0.5)
     y = mlab.normpdf(bins, mu, sigma)
     plt.plot(bins, y, 'r--')
@@ -44,6 +46,19 @@ def main():
     plt.ylabel("Number of Sequences")
     plt.xlim(0,1500)
     plt.show()
+
+'''
+Command line arguments being read in
+'''
+def setGraphParameters():
+    try:
+        for arg in string_args:
+            exec("if \"{0}\" in sys.argv:\n\
+                \tglobal {0}\n\
+                \t{0} = {1}(sys.argv[sys.argv.index({0}) + 1])".format(arg[0], arg[1]))
+    except Exception as a:
+        print "Problem with cmd args " + a
+        print x
 
 '''
 This function tokenizes sentences
