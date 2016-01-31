@@ -80,6 +80,8 @@ def createProcessedDataFile(vocab_mapping, directory, pid, max_seq_length, lock)
         indices.append(min(numTokens, max_seq_length))
         assert len(indices) == max_seq_length + 2, str(len(indices))
         data = np.vstack((data, indices))
+        if count >= 1100:
+            break
         indices = []
     #remove first placeholder value
     data = data[1::]

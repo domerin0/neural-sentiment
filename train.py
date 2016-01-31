@@ -22,14 +22,14 @@ import models.sentiment
 import util.vocabmapping
 
 #Defaults for network parameters
-hidden_size = 110
+hidden_size = 100
 max_seq_length = 100
 num_layers = 1
-batch_size = 15
+batch_size = 35
 max_epoch = 5000
-learning_rate = 0.001
+learning_rate = 0.0001
 lr_decay_factor = 0.97
-steps_per_checkpoint = 200
+steps_per_checkpoint = 100
 checkpoint_dir = "data/checkpoints/"
 dropout = 0.9
 grad_clip = 5

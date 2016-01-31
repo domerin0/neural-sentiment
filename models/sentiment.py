@@ -62,11 +62,12 @@ class SentimentModel(object):
 
 		#output logistic regression layer
 
-		weights = tf.Variable(tf.random_normal([hidden_size * 2,self.num_classes], stddev=0.01))
+		weights = tf.Variable(tf.random_normal([hidden_size,self.num_classes], stddev=0.01))
 		bias = tf.Variable(tf.random_normal([self.num_classes], stddev=0.01))
 
 		with tf.name_scope("output_proj") as scope:
-			self.y = tf.matmul(self.states[-1], weights) + bias
+			last_state = tf.slice(self.states[-1], [0, hidden_size*(num_layers-1)], [-1, hidden_size])
+			self.y = tf.matmul(last_state, weights) + bias
 		#w_hist = tf.histogram_summary("weights", weights)
 		#b_hist = tf.histogram_summary("biases", bias)
 		#compute losses, minimize cross entropy
@@ -154,7 +155,6 @@ class SentimentModel(object):
 			output_feed = [self.accuracy, self.losses, self.y]
 		input_feed[self.seq_lengths.name] = seq_lengths
 		outputs = session.run(output_feed, input_feed)
-
 		if not forward_only:
 			return outputs[0], outputs[1], None
 		else:
