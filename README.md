@@ -52,7 +52,7 @@ After your model is trained you can run:
 
 `$ python sample.py text "Your text to sample here"` 
 
-It will return some number in the interval [0,1]. This number corresponds to a positive (1), or a negative (0) score.
+It will return 0 or 1. This number corresponds to a positive (1), or a negative (0) score.
 
 ### Model
 
