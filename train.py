@@ -22,48 +22,30 @@ import models.sentiment
 import util.vocabmapping
 
 #Defaults for network parameters
-hidden_size = 100
-max_seq_length = 100
-num_layers = 1
-batch_size = 35
-max_epoch = 5000
-learning_rate = 0.0001
-lr_decay_factor = 0.97
-steps_per_checkpoint = 100
-checkpoint_dir = "data/checkpoints/"
-dropout = 0.9
-grad_clip = 5
-max_vocab_size = 20000
-string_args = [("hidden_size", "int"), ("num_layers", "int"), ("batch_size", "int"),
-("max_epoch", "int"),("learning_rate", "float"), ("steps_per_checkpoint", "int"),
-("lr_decay_factor", "float"), ("max_seq_length", "int"),
-("checkpoint_dir","string"), ("dropout", "float"), ("grad_clip", "int"),
-("max_vocab_size", "int")]
 
-x = '''
-cmd line args will be:
-hidden_size: number of hidden units in hidden layers
-num_layers: number of hidden layers
-batch_size: size of batchs in training
-max_epoch: max number of epochs to train for
-learning_rate: beggining learning rate
-steps_per_checkpoint: number of steps before running test set
-lr_decay_factor: factor by which to decay learning rate
-max_seq_length: maximum length of input token sequence
-checkpoint_dir: directory to store/restore checkpoints
-dropout: probability of hidden inputs being removed
-grad_clip: max gradient norm
-max_vocab_size: maximum size of source vocab
-'''
+flags = tf.app.flags
+FLAGS = flags.FLAGS
+flags.DEFINE_float('learning_rate', 0.0001, 'Initial learning rate.')
+flags.DEFINE_integer('max_epoch', 200, 'Max number of epochs to train for.')
+flags.DEFINE_integer('num_layers', 1, 'Number of units in hidden lay.')
+flags.DEFINE_integer('hidden_size', 128, 'Number of hidden units in hidden layers')
+flags.DEFINE_integer('batch_size', 32, 'Number of units in hidden layer 2.')
+flags.DEFINE_integer('steps_per_checkpoint', 100, 'Number of steps before running test set.')
+flags.DEFINE_float('lr_decay_factor', 0.97, 'Factor by which to decay learning rate.')
+flags.DEFINE_integer('max_seq_length', 100, 'Maximum length of input token sequence')
+flags.DEFINE_integer('grad_clip', 5, 'Max gradient norm')
+flags.DEFINE_integer('max_vocab_size', 10000, 'Maximum size of source vocab')
+flags.DEFINE_float('dropout', 1.0, 'Probability of hidden inputs being removed')
+flags.DEFINE_string('checkpoint_dir', 'data/checkpoints/', 'Directory to store/restore checkpoints')
+
 def main():
-    setNetworkParameters()
-    util.dataprocessor.run(max_seq_length, max_vocab_size)
+    util.dataprocessor.run(FLAGS.max_seq_length, FLAGS.max_vocab_size)
 
     #create model
     print "Creating model with..."
-    print "Number of hidden layers: {0}".format(num_layers)
-    print "Number of units per layer: {0}".format(hidden_size)
-    print "Dropout: {0}".format(dropout)
+    print "Number of hidden layers: {0}".format(FLAGS.num_layers)
+    print "Number of units per layer: {0}".format(FLAGS.hidden_size)
+    print "Dropout: {0}".format(FLAGS.dropout)
     vocabmapping = util.vocabmapping.VocabMapping()
 
     vocab_size = vocabmapping.getSize()
@@ -75,25 +57,25 @@ def main():
     for i in range(1, len(infile)):
         data = np.vstack((data, np.load(os.path.join(path, infile[i]))))
     np.random.shuffle(data)
-    num_batches = len(data) / batch_size
+    num_batches = len(data) / FLAGS.batch_size
     # 70/30 splir for train/test
     train_start_end_index = [0, int(0.7 * len(data))]
     test_start_end_index = [int(0.7 * len(data)) + 1, len(data) - 1]
     print "Number of training examples per batch: {0}, \
-    number of batches be epoch: {1}".format(batch_size,num_batches)
+    number of batches per epoch: {1}".format(FLAGS.batch_size,num_batches)
     with tf.Session() as sess:
         writer = tf.train.SummaryWriter("/tmp/tb_logs", sess.graph_def)
         model = createModel(sess, vocab_size)
     #train model and save to checkpoint
         print "Beggining training..."
-        print "Maximum number of epochs to train for: " + str(max_epoch)
-        print "Batch size: " + str(batch_size)
-        print "Starting learning rate: " + str(learning_rate)
-        print "Learning rate decay factor: " + str(lr_decay_factor)
+        print "Maximum number of epochs to train for: {0}".format(FLAGS.max_epoch)
+        print "Batch size: {0}".format(FLAGS.batch_size)
+        print "Starting learning rate: {0}".format(FLAGS.learning_rate)
+        print "Learning rate decay factor: {0}".format(FLAGS.lr_decay_factor)
 
         step_time, loss = 0.0, 0.0
         previous_losses = []
-        tot_steps = num_batches * max_epoch
+        tot_steps = num_batches * FLAGS.max_epoch
         #starting at step 1 to prevent test set from running after first batch
         for step in xrange(1, tot_steps):
             # Get a batch and make a step.
@@ -101,13 +83,13 @@ def main():
 
             inputs, targets, seq_lengths = model.getBatch(data[train_start_end_index[0]:train_start_end_index[1]])
 
-            str_summary, step_loss, _ = model.step(sess, inputs, targets, seq_lengths)
+            str_summary, step_loss, _ = model.step(sess, inputs, targets, seq_lengths, False)
 
-            step_time += (time.time() - start_time) / steps_per_checkpoint
-            loss += step_loss / steps_per_checkpoint
+            step_time += (time.time() - start_time) / FLAGS.steps_per_checkpoint
+            loss += step_loss / FLAGS.steps_per_checkpoint
 
             # Once in a while, we save checkpoint, print statistics, and run evals.
-            if step % steps_per_checkpoint == 0:
+            if step % FLAGS.steps_per_checkpoint == 0:
                 writer.add_summary(str_summary, step)
 
                 # Print statistics for the previous epoch.
@@ -119,10 +101,10 @@ def main():
                     sess.run(model.learning_rate_decay_op)
                 previous_losses.append(loss)
                 # Save checkpoint and zero timer and loss.
-                checkpoint_path = os.path.join(checkpoint_dir, "sentiment.ckpt")
+                checkpoint_path = os.path.join(FLAGS.checkpoint_dir, "sentiment.ckpt")
                 model.saver.save(sess, checkpoint_path, global_step=model.global_step)
                 step_time, loss = 0.0, 0.0
-                # Run evals on development set and print their perplexity.
+                # Run evals on development set and print their accuracy.
                 inputs, targets, seq_lengths = model.getBatch(data[test_start_end_index[0]:test_start_end_index[1]], True)
                 print "Running test set"
                 accuracy, test_loss, _ = model.step(sess, inputs, targets, seq_lengths, True)
@@ -131,11 +113,11 @@ def main():
                 sys.stdout.flush()
 
 def createModel(session, vocab_size):
-    model = models.sentiment.SentimentModel(vocab_size, hidden_size,
-    dropout, num_layers, grad_clip, max_seq_length, batch_size,
-    learning_rate, lr_decay_factor)
+    model = models.sentiment.SentimentModel(vocab_size, FLAGS.hidden_size,
+    FLAGS.dropout, FLAGS.num_layers, FLAGS.grad_clip, FLAGS.max_seq_length,
+    FLAGS.batch_size, FLAGS.learning_rate, FLAGS.lr_decay_factor)
     saveHyperParameters(vocab_size)
-    ckpt = tf.train.get_checkpoint_state(checkpoint_dir)
+    ckpt = tf.train.get_checkpoint_state(FLAGS.checkpoint_dir)
     if ckpt and gfile.Exists(ckpt.model_checkpoint_path):
         print("Reading model parameters from %s" % ckpt.model_checkpoint_path)
         model.saver.restore(session, ckpt.model_checkpoint_path)
@@ -152,23 +134,11 @@ makes it easier to store (and restore) the hyper parameters of the model.
 This only works because they are all numerical types.
 '''
 def saveHyperParameters(vocab_size):
-    hParams = np.array([vocab_size, hidden_size,
-    dropout, num_layers, grad_clip, max_seq_length, batch_size,
-    learning_rate, lr_decay_factor])
-    path = os.path.join(checkpoint_dir, "hyperparams.npy")
+    hParams = np.array([vocab_size, FLAGS.hidden_size,
+    FLAGS.dropout, FLAGS.num_layers, FLAGS.grad_clip, FLAGS.max_seq_length,
+    FLAGS.batch_size,FLAGS.learning_rate, FLAGS.lr_decay_factor])
+    path = os.path.join(FLAGS.checkpoint_dir, "hyperparams.npy")
     np.save(path, hParams)
-
-
-#to remove code duplication I decided to do some reflection-type parsing
-def setNetworkParameters():
-    try:
-        for arg in string_args:
-            exec("if \"{0}\" in sys.argv:\n\
-                \tglobal {0}\n\
-                \t{0} = {1}(sys.argv[sys.argv.index({0}) + 1])".format(arg[0], arg[1]))
-    except Exception as a:
-        print "Problem with cmd args " + a
-        print x
 
 if __name__ == '__main__':
     main()
