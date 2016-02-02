@@ -23,10 +23,6 @@ To run with preset hyper-parameters just run:
 
 `$ python train.py`
 
-To try other models with different hyper parameters you can do something like:
-
-`$ python train.py batch_size 125 max_seq_length 350 dropout 0.9 `
-
 The modifiable hyper-parameters are:
 
 
@@ -50,7 +46,7 @@ When you first run train.py, it will download the data set, unzip, and process i
 
 After your model is trained you can run:
 
-`$ python sample.py text "Your text to sample here"` 
+`$ python sample.py --text="Your text to sample here"` 
 
 It will return 0 or 1. This number corresponds to a positive (1), or a negative (0) score.
 
@@ -75,6 +71,8 @@ There isn't much to see right now except an overview of the graph. I will includ
 coming soon
 
 ### Attribution
+Thanks to reddit user /u/LeavesBreathe for the help with getting the last hidden state
 
 The dataset used was the [Large Movie Review Dataset](http://ai.stanford.edu/~amaas/data/sentiment/).
+
 I also referred to this [tutorial](http://deeplearning.net/tutorial/lstm.html) as a starting point
