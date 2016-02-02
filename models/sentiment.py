@@ -47,18 +47,14 @@ class SentimentModel(object):
 
 		#create input embedding layer
 		cell = rnn_cell.LSTMCell(hidden_size, hidden_size, initializer=initializer)
-		if not forward_only and dropout < 1.0:
-			cell = rnn_cell.DropoutWrapper(cell, input_keep_prob=dropout)
-		self.cell = rnn_cell.EmbeddingWrapper(cell, vocab_size)
-		encoder_outputs, encoder_state = rnn.rnn(self.cell, self.seq_input, dtype=tf.float32)
-
 		#If multiple layers are wanted
 		if num_layers >1:
-			self.cell = rnn_cell.MultiRNNCell([cell] * num_layers)
-			hidden_outputs, states = rnn.rnn(self.cell, encoder_outputs,
-			initial_state=encoder_state, sequence_length=self.seq_lengths)
-		else:
-			states = encoder_state
+			cell = rnn_cell.MultiRNNCell([cell] * num_layers)
+		if not forward_only and dropout < 1.0:
+			cell = rnn_cell.DropoutWrapper(cell, input_keep_prob=dropout)
+		cell = rnn_cell.EmbeddingWrapper(cell, vocab_size)
+
+		encoder_outputs, encoder_state = rnn.rnn(cell, self.seq_input, dtype=tf.float32)
 
 		#output logistic regression layer
 
@@ -67,8 +63,8 @@ class SentimentModel(object):
 
 		#TODO average hidden states across time
 		with tf.name_scope("output_proj") as scope:
-			last_state = tf.slice(states[-1], [0, self.cell.output_size*(num_layers-1)],
-			[-1, self.cell.output_size])
+			last_state = tf.slice(encoder_state[-1], [0, cell.output_size*(num_layers-1)],
+			[-1, cell.output_size])
 			self.y = tf.matmul(last_state, weights) + bias
 		w_hist = tf.histogram_summary("weights", weights)
 		b_hist = tf.histogram_summary("biases", bias)
