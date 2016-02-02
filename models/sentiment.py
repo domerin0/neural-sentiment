@@ -1,6 +1,6 @@
 
 import tensorflow as tf
-from tensorflow.models.rnn import rnn, rnn_cell
+from tensorflow.models.rnn import rnn, rnn_cell, seq2seq
 import numpy as np
 
 class SentimentModel(object):
@@ -46,33 +46,34 @@ class SentimentModel(object):
 		name="early_stop")
 
 		#create input embedding layer
-		#there is some sort of issue with using gpu for this layer
-		#which is why ive forced it to be run on the cpu
-		with tf.device("/cpu:0"):
-			embeddings = tf.Variable(tf.random_uniform((self.vocab_size, hidden_size), -1.0, 1.0))
-			emb =[tf.nn.embedding_lookup(embeddings, inp) for inp in self.seq_input]
-
-		#create hidden lstm layers
 		cell = rnn_cell.LSTMCell(hidden_size, hidden_size, initializer=initializer)
 		if not forward_only and dropout < 1.0:
 			cell = rnn_cell.DropoutWrapper(cell, input_keep_prob=dropout)
-		self.cell = rnn_cell.MultiRNNCell([cell] * num_layers)
-		self.initial_state = self.cell.zero_state(batch_size, tf.float32)
-		self.hidden_outputs, self.states = rnn.rnn(self.cell, emb, dtype=tf.float32)
+		self.cell = rnn_cell.EmbeddingWrapper(cell, vocab_size)
+		encoder_outputs, encoder_state = rnn.rnn(self.cell, self.seq_input, dtype=tf.float32)
+
+		#If multiple layers are wanted
+		if num_layers >1:
+			self.cell = rnn_cell.MultiRNNCell([cell] * num_layers)
+			hidden_outputs, states = rnn.rnn(self.cell, encoder_outputs,
+			initial_state=encoder_state, sequence_length=self.seq_lengths)
+		else:
+			states = encoder_state
 
 		#output logistic regression layer
 
 		weights = tf.Variable(tf.random_normal([hidden_size,self.num_classes], stddev=0.01))
 		bias = tf.Variable(tf.random_normal([self.num_classes], stddev=0.01))
 
+		#TODO average hidden states across time
 		with tf.name_scope("output_proj") as scope:
-			last_state = tf.slice(self.states[-1], [0, hidden_size*(num_layers-1)], [-1, hidden_size])
+			last_state = tf.slice(states[-1], [0, self.cell.output_size*(num_layers-1)],
+			[-1, self.cell.output_size])
 			self.y = tf.matmul(last_state, weights) + bias
-		#w_hist = tf.histogram_summary("weights", weights)
-		#b_hist = tf.histogram_summary("biases", bias)
+		w_hist = tf.histogram_summary("weights", weights)
+		b_hist = tf.histogram_summary("biases", bias)
 		#compute losses, minimize cross entropy
 		with tf.name_scope("loss") as scope:
-			#self.losses = -tf.reduce_sum(self.target*tf.log(self.y))
 			self.losses = tf.reduce_mean(tf.nn.softmax_cross_entropy_with_logits(self.y, self.target))
 			loss_summ = tf.scalar_summary("loss", self.losses)
 		self.y = tf.nn.softmax(self.y)
@@ -80,15 +81,15 @@ class SentimentModel(object):
 		with tf.name_scope("accuracy") as scope:
 			self.accuracy = tf.reduce_mean(tf.cast(correct_prediction, tf.float32))
 			acc_summ = tf.scalar_summary("accuracy", self.accuracy)
+
 		params = tf.trainable_variables()
 		if not forward_only:
 			with tf.name_scope("train") as scope:
-				opt = tf.train.AdamOptimizer(self.learning_rate)#.minimize(self.losses)
+				opt = tf.train.GradientDescentOptimizer(self.learning_rate)
 			gradients = tf.gradients(self.losses, params)
 			clipped_gradients, norm = tf.clip_by_global_norm(gradients, self.max_gradient_norm)
 			with tf.name_scope("grad_norms") as scope:
-				self.gradient_norms = norm
-				grad_summ = tf.scalar_summary("grad_norms", self.gradient_norms)
+				grad_summ = tf.scalar_summary("grad_norms", norm)
 			self.update = opt.apply_gradients(zip(clipped_gradients, params), global_step=self.global_step)
 			self.saver = tf.train.Saver(tf.all_variables())
 			self.merged = tf.merge_all_summaries()
@@ -116,19 +117,17 @@ class SentimentModel(object):
 		batch_inputs = []
 		if not test_data:
 			start = self.batch_pointer * self.batch_size
-			for length_idx in xrange(self.max_seq_length):
-				  batch_inputs.append(np.array([data[batch_idx][length_idx]
-				for batch_idx in xrange(start, start + self.batch_size)], dtype=np.int32))
+			data = data[start:start + self.batch_size].transpose()
+			for i in range(self.max_seq_length):
+				batch_inputs.append(data[i])
 			self.batch_pointer += 1
 			self.batch_pointer = self.batch_pointer % (len(data) / self.batch_size)
 			onehot = onehot[start: start + self.batch_size]
-			assert len(batch_inputs[0]) == self.batch_size
 			seq_lengths = seq_lengths[start: start + self.batch_size]
 		else:
-			for length_idx in xrange(self.max_seq_length):
-				  batch_inputs.append(
-				  np.array([data[batch_idx][length_idx]
-				for batch_idx in xrange(len(targets))], dtype=np.int32))
+			data = data.transpose()
+			for i in range(self.max_seq_length):
+				batch_inputs.append(data[i])
 		return batch_inputs, onehot, seq_lengths
 
 
@@ -149,11 +148,11 @@ class SentimentModel(object):
 		for i in xrange(self.max_seq_length):
 			input_feed[self.seq_input[i].name] = inputs[i]
 		input_feed[self.target.name] = targets
+		input_feed[self.seq_lengths.name] = seq_lengths
 		if not forward_only:
 			output_feed = [self.merged, self.losses, self.update]
 		else:
 			output_feed = [self.accuracy, self.losses, self.y]
-		input_feed[self.seq_lengths.name] = seq_lengths
 		outputs = session.run(output_feed, input_feed)
 		if not forward_only:
 			return outputs[0], outputs[1], None
