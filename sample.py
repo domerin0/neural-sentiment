@@ -19,33 +19,18 @@ import util.dataprocessor
 import models.sentiment
 import util.vocabmapping
 
-#Defaults for network parameters
-hidden_size = 128
-max_seq_length = 500
-num_layers = 1
-batch_size = 25
-max_epoch = 150
-learning_rate = 0.001
-lr_decay_factor = 0.01
-steps_per_checkpoint = 10
-checkpoint_dir = "data/checkpoints/"
-text = "Hello World!"
+flags.DEFINE_string('checkpoint_dir', 'data/checkpoints/', 'Directory to store/restore checkpoints')
+flags.DEFINE_string('text', 'Hello World!', 'Text to sample with.')
 
-x = '''
-cmd line args will be:
-text: the text you want to test against
-checkpoint_dir: directory to store/restore checkpoints
-'''
 
 
 def main():
-    setNetworkParameters()
     vocab_mapping = util.vocabmapping.VocabMapping()
     with tf.Session() as sess:
         model = loadModel(sess, vocab_mapping.getSize())
         if model == None:
             return
-        tokens = tokenize(text.lower())
+        tokens = tokenize(FLAG.text.lower())
         if len(tokens) > model.max_seq_length:
             tokens = tokens[0:model.max_seq_length]
         indices = [vocab_mapping.getIndex(j) for j in tokens]
@@ -57,12 +42,10 @@ def main():
               np.array([indices[length_idx]], dtype=np.int32))
         #dummy target, we don't really need this.
         targets = [1]
-        onehot = np.zeros((len(targets), 11))
+        onehot = np.zeros((len(targets), 2))
         onehot[np.arange(len(targets)), targets] = 1
         #assert len(targets) == len(inputs), "input len: {0}, target len: {1}".format(len(inputs), len(targets))
-        _, _, output = model.step(sess, inputs, onehot, seq_lengths, True)
-        idx = output[0].argmax(axis=0)
-        print output[0]
+
         print "Value of sentiment: {0} with probability: {1}".format(idx, output[0][idx] / np.sum(output[0]))
 
 
@@ -71,7 +54,7 @@ def loadModel(session, vocab_size):
     model = models.sentiment.SentimentModel(int(hParams[0]), int(hParams[1]),
     float(hParams[2]), int(hParams[3]), int(hParams[4]), int(hParams[5]),
     1, float(hParams[7]),float(hParams[8]) ,True)
-    ckpt = tf.train.get_checkpoint_state(checkpoint_dir)
+    ckpt = tf.train.get_checkpoint_state(FLAG.checkpoint_dir)
     if ckpt and gfile.Exists(ckpt.model_checkpoint_path):
         print("Reading model parameters from %s" % ckpt.model_checkpoint_path)
         model.saver.restore(session, ckpt.model_checkpoint_path)
@@ -87,21 +70,8 @@ This is a hack mostly, but I couldn't find another way to do this.
 Ultimately, I don't think is that bad.
 '''
 def restoreHyperParameters():
-    path = os.path.join(checkpoint_dir, "hyperparams.npy")
+    path = os.path.join(FLAG.checkpoint_dir, "hyperparams.npy")
     return np.load(path)
-
-
-def setNetworkParameters():
-    try:
-        if "checkpoint_dir" in sys.argv:
-            global checkpoint_dir
-            checkpoint_dir = sys.argv[sys.argv.index("checkpoint_dir") + 1]
-        if "text" in sys.argv:
-            global text
-            text = sys.argv[sys.argv.index("text") + 1]
-    except Exception as a:
-        print "Problem with cmd args " + a
-        print x
 
 def tokenize(text):
     text = text.decode('utf-8')
