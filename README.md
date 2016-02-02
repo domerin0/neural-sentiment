@@ -72,5 +72,7 @@ coming soon
 
 ### Attribution
 Thanks to reddit user /u/LeavesBreathe for the help with getting the last hidden state
+
 The dataset used was the [Large Movie Review Dataset](http://ai.stanford.edu/~amaas/data/sentiment/).
+
 I also referred to this [tutorial](http://deeplearning.net/tutorial/lstm.html) as a starting point
