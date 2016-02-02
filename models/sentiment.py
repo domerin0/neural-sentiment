@@ -45,13 +45,13 @@ class SentimentModel(object):
 		self.seq_lengths = tf.placeholder(tf.int32, shape=[None],
 		name="early_stop")
 
-		#create input embedding layer
 		cell = rnn_cell.LSTMCell(hidden_size, hidden_size, initializer=initializer)
 		#If multiple layers are wanted
 		if num_layers >1:
 			cell = rnn_cell.MultiRNNCell([cell] * num_layers)
 		if not forward_only and dropout < 1.0:
 			cell = rnn_cell.DropoutWrapper(cell, input_keep_prob=dropout)
+		#create input embedding layer
 		cell = rnn_cell.EmbeddingWrapper(cell, vocab_size)
 
 		encoder_outputs, encoder_state = rnn.rnn(cell, self.seq_input, dtype=tf.float32)
