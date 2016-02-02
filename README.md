@@ -23,6 +23,10 @@ To run with preset hyper-parameters just run:
 
 `$ python train.py`
 
+To try other hyper-parameters:
+
+`$ python train.py --dropout=0.8 --hidden_size=120` etc...
+
 The modifiable hyper-parameters are:
 
 
