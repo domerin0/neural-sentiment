@@ -90,7 +90,7 @@ class SentimentModel(object):
 			self.saver = tf.train.Saver(tf.all_variables())
 			self.merged = tf.merge_all_summaries()
 
-	def getBatch(self, data, test_data=False):
+	def getBatch(self, data, targets, seq_lengths, test_data=False):
 		'''
 		Get a random batch of data to preprocess for a step
 		not sure how efficient this is...
@@ -104,27 +104,20 @@ class SentimentModel(object):
 		A numpy arrays for inputs, target, and seq_lengths
 
 		'''
-		seq_lengths = (data.transpose()[-1]).transpose()
-		targets = (data.transpose()[-2]).transpose()
-		onehot = np.zeros((len(targets), self.num_classes))
-		onehot[np.arange(len(targets)), targets] = 1
-		#cut off last two columns (score and seq length)
-		data = (data.transpose()[0:-2]).transpose()
 		batch_inputs = []
 		if not test_data:
 			start = self.batch_pointer * self.batch_size
-			data = data[start:start + self.batch_size].transpose()
+			data = data.transpose()[start:start + self.batch_size].transpose()
 			for i in range(self.max_seq_length):
 				batch_inputs.append(data[i])
 			self.batch_pointer += 1
 			self.batch_pointer = self.batch_pointer % (len(data) / self.batch_size)
-			onehot = onehot[start: start + self.batch_size]
+			targets = targets[start: start + self.batch_size]
 			seq_lengths = seq_lengths[start: start + self.batch_size]
 		else:
-			data = data.transpose()
 			for i in range(self.max_seq_length):
 				batch_inputs.append(data[i])
-		return batch_inputs, onehot, seq_lengths
+		return batch_inputs, targets, seq_lengths
 
 
 	def step(self, session, inputs, targets, seq_lengths, forward_only=False):

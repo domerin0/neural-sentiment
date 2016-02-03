@@ -27,14 +27,14 @@ flags = tf.app.flags
 FLAGS = flags.FLAGS
 flags.DEFINE_float('learning_rate', 0.0001, 'Initial learning rate.')
 flags.DEFINE_integer('max_epoch', 200, 'Max number of epochs to train for.')
-flags.DEFINE_integer('num_layers', 1, 'Number of units in hidden lay.')
-flags.DEFINE_integer('hidden_size', 128, 'Number of hidden units in hidden layers')
-flags.DEFINE_integer('batch_size', 32, 'Number of units in hidden layer 2.')
+flags.DEFINE_integer('num_layers', 2, 'Number of units in hidden lay.')
+flags.DEFINE_integer('hidden_size', 400, 'Number of hidden units in hidden layers')
+flags.DEFINE_integer('batch_size', 150, 'Number of units in hidden layer 2.')
 flags.DEFINE_integer('steps_per_checkpoint', 100, 'Number of steps before running test set.')
 flags.DEFINE_float('lr_decay_factor', 0.97, 'Factor by which to decay learning rate.')
-flags.DEFINE_integer('max_seq_length', 100, 'Maximum length of input token sequence')
+flags.DEFINE_integer('max_seq_length', 200, 'Maximum length of input token sequence')
 flags.DEFINE_integer('grad_clip', 5, 'Max gradient norm')
-flags.DEFINE_integer('max_vocab_size', 10000, 'Maximum size of source vocab')
+flags.DEFINE_integer('max_vocab_size', 40000, 'Maximum size of source vocab')
 flags.DEFINE_float('dropout', 1.0, 'Probability of hidden inputs being removed')
 flags.DEFINE_string('checkpoint_dir', 'data/checkpoints/', 'Directory to store/restore checkpoints')
 
@@ -76,12 +76,18 @@ def main():
         step_time, loss = 0.0, 0.0
         previous_losses = []
         tot_steps = num_batches * FLAGS.max_epoch
+        seq_lengths = (data.transpose()[-1]).transpose()
+        targets = (data.transpose()[-2]).transpose()
+        onehot = np.zeros((len(targets), 2))
+        onehot[np.arange(len(targets)), targets] = 1
+        #cut off last two columns (score and seq length)
+        data = (data.transpose()[0:-2]).transpose()
         #starting at step 1 to prevent test set from running after first batch
         for step in xrange(1, tot_steps):
             # Get a batch and make a step.
             start_time = time.time()
 
-            inputs, targets, seq_lengths = model.getBatch(data[train_start_end_index[0]:train_start_end_index[1]])
+            inputs, targets, seq_lengths = model.getBatch(data[train_start_end_index[0]:train_start_end_index[1]],  onehot, seq_lengths)
 
             str_summary, step_loss, _ = model.step(sess, inputs, targets, seq_lengths, False)
 
@@ -105,7 +111,7 @@ def main():
                 model.saver.save(sess, checkpoint_path, global_step=model.global_step)
                 step_time, loss = 0.0, 0.0
                 # Run evals on development set and print their accuracy.
-                inputs, targets, seq_lengths = model.getBatch(data[test_start_end_index[0]:test_start_end_index[1]], True)
+                inputs, targets, seq_lengths = model.getBatch(data[test_start_end_index[0]:test_start_end_index[1]], onehot, seq_lengths, True)
                 print "Running test set"
                 accuracy, test_loss, _ = model.step(sess, inputs, targets, seq_lengths, True)
                 print "Test loss: {0} Accuracy: {1}".format(test_loss, accuracy)
