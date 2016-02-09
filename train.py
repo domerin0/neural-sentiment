@@ -25,11 +25,11 @@ import util.vocabmapping
 
 flags = tf.app.flags
 FLAGS = flags.FLAGS
-flags.DEFINE_float('learning_rate', 0.0001, 'Initial learning rate.')
+flags.DEFINE_float('learning_rate', 0.01, 'Initial learning rate.')
 flags.DEFINE_integer('max_epoch', 200, 'Max number of epochs to train for.')
-flags.DEFINE_integer('num_layers', 2, 'Number of units in hidden lay.')
+flags.DEFINE_integer('num_layers', 3, 'Number of units in hidden lay.')
 flags.DEFINE_integer('hidden_size', 400, 'Number of hidden units in hidden layers')
-flags.DEFINE_integer('batch_size', 150, 'Number of units in hidden layer 2.')
+flags.DEFINE_integer('batch_size', 200, 'Number of units in hidden layer 2.')
 flags.DEFINE_integer('steps_per_checkpoint', 100, 'Number of steps before running test set.')
 flags.DEFINE_float('lr_decay_factor', 0.97, 'Factor by which to decay learning rate.')
 flags.DEFINE_integer('max_seq_length', 200, 'Maximum length of input token sequence')
@@ -76,7 +76,7 @@ def main():
         step_time, loss = 0.0, 0.0
         previous_losses = []
         tot_steps = num_batches * FLAGS.max_epoch
-        model.initData(data, num_batches, train_start_end_index, test_start_end_index)
+        model.initData(data,FLAGS.batch_size, train_start_end_index, test_start_end_index)
         #starting at step 1 to prevent test set from running after first batch
         for step in xrange(1, tot_steps):
             # Get a batch and make a step.
@@ -119,7 +119,7 @@ def main():
 def createModel(session, vocab_size):
     model = models.sentiment.SentimentModel(vocab_size, FLAGS.hidden_size,
     FLAGS.dropout, FLAGS.num_layers, FLAGS.grad_clip, FLAGS.max_seq_length,
-    FLAGS.batch_size, FLAGS.learning_rate, FLAGS.lr_decay_factor)
+    FLAGS.learning_rate, FLAGS.lr_decay_factor)
     saveHyperParameters(vocab_size)
     ckpt = tf.train.get_checkpoint_state(FLAGS.checkpoint_dir)
     if ckpt and gfile.Exists(ckpt.model_checkpoint_path):
@@ -140,7 +140,7 @@ This only works because they are all numerical types.
 def saveHyperParameters(vocab_size):
     hParams = np.array([vocab_size, FLAGS.hidden_size,
     FLAGS.dropout, FLAGS.num_layers, FLAGS.grad_clip, FLAGS.max_seq_length,
-    FLAGS.batch_size,FLAGS.learning_rate, FLAGS.lr_decay_factor])
+    FLAGS.learning_rate, FLAGS.lr_decay_factor])
     path = os.path.join(FLAGS.checkpoint_dir, "hyperparams.npy")
     np.save(path, hParams)
 

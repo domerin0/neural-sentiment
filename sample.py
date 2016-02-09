@@ -53,7 +53,7 @@ def loadModel(session, vocab_size):
     hParams = restoreHyperParameters()
     model = models.sentiment.SentimentModel(int(hParams[0]), int(hParams[1]),
     float(hParams[2]), int(hParams[3]), int(hParams[4]), int(hParams[5]),
-    1, float(hParams[7]),float(hParams[8]) ,True)
+    float(hParams[7]),float(hParams[8]) ,True)
     ckpt = tf.train.get_checkpoint_state(FLAG.checkpoint_dir)
     if ckpt and gfile.Exists(ckpt.model_checkpoint_path):
         print("Reading model parameters from %s" % ckpt.model_checkpoint_path)
