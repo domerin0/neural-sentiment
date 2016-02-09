@@ -110,7 +110,7 @@ class SentimentModel(object):
 			targets = self.train_targets[self.train_batch_pointer]
 			seq_lengths = self.train_sequence_lengths[self.train_batch_pointer]
 			self.train_batch_pointer += 1
-			self.train_batch_pointer = self.batch_pointer % len(self.train_data)
+			self.train_batch_pointer = self.train_batch_pointer % len(self.train_data)
 			return batch_inputs, targets, seq_lengths
 		else:
 			temp = self.test_data[self.test_batch_pointer].transpose()
@@ -119,7 +119,7 @@ class SentimentModel(object):
 			targets = self.test_targets[self.test_batch_pointer]
 			seq_lengths = self.test_sequence_lengths[self.test_batch_pointer]
 			self.test_batch_pointer += 1
-			self.test_batch_pointer = self.batch_pointer % len(self.test_data)
+			self.test_batch_pointer = self.test_batch_pointer % len(self.test_data)
 			return batch_inputs, targets, seq_lengths
 
 	def initData(self, data, batch_size, train_start_end_index, test_start_end_index):
@@ -169,9 +169,9 @@ class SentimentModel(object):
 		seq_lengths: list of sequence lengths, provided at runtime to prevent need for padding
 
 		Returns:
-		accuracy, loss, gradient norms
+		merged_tb_vars, loss, none
 		or (in forward only):
-		none, loss, outputs
+		accuracy, loss, outputs
 		'''
 		input_feed = {}
 		for i in xrange(self.max_seq_length):

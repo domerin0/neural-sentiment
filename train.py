@@ -25,17 +25,19 @@ import util.vocabmapping
 
 flags = tf.app.flags
 FLAGS = flags.FLAGS
-flags.DEFINE_float('learning_rate', 0.01, 'Initial learning rate.')
+flags.DEFINE_float('learning_rate', 0.001, 'Initial learning rate.')
 flags.DEFINE_integer('max_epoch', 200, 'Max number of epochs to train for.')
-flags.DEFINE_integer('num_layers', 3, 'Number of units in hidden lay.')
-flags.DEFINE_integer('hidden_size', 400, 'Number of hidden units in hidden layers')
+flags.DEFINE_integer('num_layers', 2, 'Number of units in hidden lay.')
+flags.DEFINE_integer('hidden_size', 500, 'Number of hidden units in hidden layers')
 flags.DEFINE_integer('batch_size', 200, 'Number of units in hidden layer 2.')
 flags.DEFINE_integer('steps_per_checkpoint', 100, 'Number of steps before running test set.')
 flags.DEFINE_float('lr_decay_factor', 0.97, 'Factor by which to decay learning rate.')
 flags.DEFINE_integer('max_seq_length', 200, 'Maximum length of input token sequence')
 flags.DEFINE_integer('grad_clip', 5, 'Max gradient norm')
-flags.DEFINE_integer('max_vocab_size', 40000, 'Maximum size of source vocab')
+flags.DEFINE_integer('max_vocab_size', 10000, 'Maximum size of source vocab')
 flags.DEFINE_float('dropout', 1.0, 'Probability of hidden inputs being removed')
+flags.DEFINE_float('train_frac', 0.7, 'Number between 0 and 1 indicating percentage of\
+ data to use for training (rest goes to test set)')
 flags.DEFINE_string('checkpoint_dir', 'data/checkpoints/', 'Directory to store/restore checkpoints')
 
 def main():
@@ -47,7 +49,6 @@ def main():
     print "Number of units per layer: {0}".format(FLAGS.hidden_size)
     print "Dropout: {0}".format(FLAGS.dropout)
     vocabmapping = util.vocabmapping.VocabMapping()
-
     vocab_size = vocabmapping.getSize()
     print "Vocab size is: {0}".format(vocab_size)
     path = "data/processed/"
@@ -59,8 +60,8 @@ def main():
     np.random.shuffle(data)
     num_batches = len(data) / FLAGS.batch_size
     # 70/30 splir for train/test
-    train_start_end_index = [0, int(0.7 * len(data))]
-    test_start_end_index = [int(0.7 * len(data)) + 1, len(data) - 1]
+    train_start_end_index = [0, int(FLAGS.train_frac * len(data))]
+    test_start_end_index = [int(FLAGS.train_frac * len(data)) + 1, len(data) - 1]
     print "Number of training examples per batch: {0}, \
     number of batches per epoch: {1}".format(FLAGS.batch_size,num_batches)
     with tf.Session() as sess:
@@ -103,17 +104,17 @@ def main():
                 # Save checkpoint and zero timer and loss.
                 checkpoint_path = os.path.join(FLAGS.checkpoint_dir, "sentiment.ckpt")
                 model.saver.save(sess, checkpoint_path, global_step=model.global_step)
-                step_time, loss, test_acc = 0.0, 0.0, 0.0
+                step_time, loss, accuracy = 0.0, 0.0, 0.0
                 # Run evals on test set and print their accuracy.
                 print "Running test set"
-                for test_step in range(len(model.test_data)):
+                for test_step in xrange(len(model.test_data)):
                     inputs, targets, seq_lengths = model.getBatch(True)
-                    accuracy, test_loss, _ = model.step(sess, inputs, targets, seq_lengths, True)
+                    test_acc, test_loss, _ = model.step(sess, inputs, targets, seq_lengths, True)
                     loss += test_loss
-                    test_acc += accuracy
-                print "Test loss: {0} Accuracy: {1}".format(loss / len(model.test_data), test_acc / len(model.test_data))
+                    accuracy += test_acc
+                print "Test loss: {0} Accuracy: {1}".format(loss / len(model.test_data), accuracy / len(model.test_data))
                 print "-------Step {0}/{1}------".format(step,tot_steps)
-                loss = 0.0
+                loss, accuracy = 0.0, 0.0
                 sys.stdout.flush()
 
 def createModel(session, vocab_size):
