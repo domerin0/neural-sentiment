@@ -90,13 +90,13 @@ class SentimentModel(object):
 			self.saver = tf.train.Saver(tf.all_variables())
 			self.merged = tf.merge_all_summaries()
 
-	def getBatch(self, data, targets, seq_lengths, test_data=False):
+	def getBatch(self, test_data=False):
 		'''
 		Get a random batch of data to preprocess for a step
 		not sure how efficient this is...
 
 		Input:
-		data: shuffled nxm numpy array of data (last 2 columns are target & seq length)
+		data: shuffled batchxnxm numpy array of data
 		train_data: flag indicating whether or not to increment batch pointer, in other
 			word whether to return the next training batch, or cross val data
 
@@ -106,19 +106,58 @@ class SentimentModel(object):
 		'''
 		batch_inputs = []
 		if not test_data:
-			start = self.batch_pointer * self.batch_size
-			data = data.transpose()[start:start + self.batch_size].transpose()
+			temp = self.train_data[self.train_batch_pointer].transpose()
 			for i in range(self.max_seq_length):
-				batch_inputs.append(data[i])
-			self.batch_pointer += 1
-			self.batch_pointer = self.batch_pointer % (len(data) / self.batch_size)
-			targets = targets[start: start + self.batch_size]
-			seq_lengths = seq_lengths[start: start + self.batch_size]
+				batch_inputs.append(temp[i])
+			targets = self.train_targets[self.train_batch_pointer]
+			seq_lengths = self.train_sequence_lengths[self.train_batch_pointer]
+			self.train_batch_pointer += 1
+			self.train_batch_pointer = self.batch_pointer % len(self.train_data)
+			return batch_inputs, targets, seq_lengths
 		else:
+			temp = self.test_data[self.test_batch_pointer].transpose()
 			for i in range(self.max_seq_length):
-				batch_inputs.append(data[i])
-		return batch_inputs, targets, seq_lengths
+				batch_inputs.append(temp[i])
+			targets = self.test_targets[self.test_batch_pointer]
+			seq_lengths = self.test_sequence_lengths[self.test_batch_pointer]
+			self.test_batch_pointer += 1
+			self.test_batch_pointer = self.batch_pointer % len(self.test_data)
+			return batch_inputs, targets, seq_lengths
 
+	def initData(self, data, num_batches, train_start_end_index, test_start_end_index):
+		'''
+		Split data into train/test sets and load into memory
+		'''
+		self.train_batch_pointer = 0
+		self.test_batch_pointer = 0
+		#cutoff non even number of batches
+		targets = (data.transpose()[-2]).transpose()
+		onehot = np.zeros((len(targets), 2))
+		onehot[np.arange(len(targets)), targets] = 1
+		sequence_lengths = (data.transpose()[-1]).transpose()
+		data = (data.transpose()[0:-2]).transpose()
+
+		self.train_data = data[train_start_end_index[0]: train_start_end_index[1]]
+		self.test_data = data[test_start_end_index[0]:test_start_end_index[1]]
+
+		train_cutoff = num_batches % len(self.train_data)
+		self.test_num_batch = len(self.test_data) / self.batch_size
+		test_cutoff = self.test_num_batch % len(self.test_data)
+		self.train_data = self.train_data[:-train_cutoff]
+		self.test_data = self.test_data[:-test_cutoff]
+
+		self.train_sequence_lengths = sequence_lengths[train_start_end_index[0]:train_start_end_index[1]][:-train_cutoff]
+		self.train_sequence_lengths = np.array_split(self.train_sequence_lengths, num_batches)
+		self.train_targets = onehot[train_start_end_index[0]:train_start_end_index[1]][:-train_cutoff]
+		self.train_targets = np.array_split(self.train_targets, num_batches)
+		self.train_data = np.array_split(self.train_data, num_batches)
+
+		print "test size is: {0}, splitting into {1} batches".format(len(self.test_data), self.test_num_batch)
+		self.test_data = np.array_split(self.test_data, self.test_num_batch)
+		self.test_targets = onehot[test_start_end_index[0]:test_start_end_index[1]][:-test_cutoff]
+		self.test_targets = np.array_split(self.test_targets, self.test_num_batch)
+		self.test_sequence_lengths = sequence_lengths[test_start_end_index[0]:test_start_end_index[1]][:-test_cutoff]
+		self.test_sequence_lengths = np.array_split(self.test_sequence_lengths, self.test_num_batch)
 
 	def step(self, session, inputs, targets, seq_lengths, forward_only=False):
 		'''

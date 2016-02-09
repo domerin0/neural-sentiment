@@ -76,19 +76,13 @@ def main():
         step_time, loss = 0.0, 0.0
         previous_losses = []
         tot_steps = num_batches * FLAGS.max_epoch
-        seq_lengths = (data.transpose()[-1]).transpose()
-        targets = (data.transpose()[-2]).transpose()
-        onehot = np.zeros((len(targets), 2))
-        onehot[np.arange(len(targets)), targets] = 1
-        #cut off last two columns (score and seq length)
-        data = (data.transpose()[0:-2]).transpose()
+        model.initData(data, num_batches, train_start_end_index, test_start_end_index)
         #starting at step 1 to prevent test set from running after first batch
         for step in xrange(1, tot_steps):
             # Get a batch and make a step.
             start_time = time.time()
 
-            inputs, targets, seq_lengths = model.getBatch(data[train_start_end_index[0]:train_start_end_index[1]],  onehot, seq_lengths)
-
+            inputs, targets, seq_lengths = model.getBatch()
             str_summary, step_loss, _ = model.step(sess, inputs, targets, seq_lengths, False)
 
             step_time += (time.time() - start_time) / FLAGS.steps_per_checkpoint
@@ -109,13 +103,17 @@ def main():
                 # Save checkpoint and zero timer and loss.
                 checkpoint_path = os.path.join(FLAGS.checkpoint_dir, "sentiment.ckpt")
                 model.saver.save(sess, checkpoint_path, global_step=model.global_step)
-                step_time, loss = 0.0, 0.0
-                # Run evals on development set and print their accuracy.
-                inputs, targets, seq_lengths = model.getBatch(data[test_start_end_index[0]:test_start_end_index[1]], onehot, seq_lengths, True)
+                step_time, loss, test_acc = 0.0, 0.0, 0.0
+                # Run evals on test set and print their accuracy.
                 print "Running test set"
-                accuracy, test_loss, _ = model.step(sess, inputs, targets, seq_lengths, True)
-                print "Test loss: {0} Accuracy: {1}".format(test_loss, accuracy)
+                for test_step in range(len(model.test_data)):
+                    inputs, targets, seq_lengths = model.getBatch(True)
+                    accuracy, test_loss, _ = model.step(sess, inputs, targets, seq_lengths, True)
+                    loss += test_loss
+                    test_acc += accuracy
+                print "Test loss: {0} Accuracy: {1}".format(loss / len(model.test_data), test_acc / len(model.test_data))
                 print "-------Step {0}/{1}------".format(step,tot_steps)
+                loss = 0.0
                 sys.stdout.flush()
 
 def createModel(session, vocab_size):
