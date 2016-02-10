@@ -54,16 +54,22 @@ class SentimentModel(object):
 
 		encoder_outputs, encoder_state = rnn.rnn(cell, self.seq_input, dtype=tf.float32)
 
-		#output logistic regression layer
+		#Get average last hidden state over time
+		# size of concat_states = (batch_size * seq_length) x hidden_size
+		concat_states =  tf.pack(encoder_state)
 
+		#size of avg_states = batch_size x hidden_size*2
+		avg_states = tf.reduce_mean(concat_states, 0)
+
+		#size of avg_last_state = batch_size x hidden_size
+		avg_last_state = tf.slice(avg_states, [0, hidden_size], [-1, hidden_size])
+
+		#output logistic regression layer
 		weights = tf.Variable(tf.random_normal([hidden_size,self.num_classes], stddev=0.01))
 		bias = tf.Variable(tf.random_normal([self.num_classes], stddev=0.01))
 
-		#TODO average hidden states across time
 		with tf.name_scope("output_proj") as scope:
-			last_state = tf.slice(encoder_state[-1], [0, cell.output_size*(num_layers-1)],
-			[-1, cell.output_size])
-			self.y = tf.matmul(last_state, weights) + bias
+			self.y = tf.matmul(avg_last_state, weights) + bias
 		#compute losses, minimize cross entropy
 		with tf.name_scope("loss") as scope:
 			self.losses = tf.reduce_mean(tf.nn.softmax_cross_entropy_with_logits(self.y, self.target))
