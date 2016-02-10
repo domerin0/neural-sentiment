@@ -64,8 +64,6 @@ class SentimentModel(object):
 			last_state = tf.slice(encoder_state[-1], [0, cell.output_size*(num_layers-1)],
 			[-1, cell.output_size])
 			self.y = tf.matmul(last_state, weights) + bias
-		w_hist = tf.histogram_summary("weights", weights)
-		b_hist = tf.histogram_summary("biases", bias)
 		#compute losses, minimize cross entropy
 		with tf.name_scope("loss") as scope:
 			self.losses = tf.reduce_mean(tf.nn.softmax_cross_entropy_with_logits(self.y, self.target))

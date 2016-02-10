@@ -25,17 +25,17 @@ import util.vocabmapping
 
 flags = tf.app.flags
 FLAGS = flags.FLAGS
-flags.DEFINE_float('learning_rate', 0.001, 'Initial learning rate.')
-flags.DEFINE_integer('max_epoch', 200, 'Max number of epochs to train for.')
-flags.DEFINE_integer('num_layers', 2, 'Number of units in hidden lay.')
-flags.DEFINE_integer('hidden_size', 500, 'Number of hidden units in hidden layers')
-flags.DEFINE_integer('batch_size', 200, 'Number of units in hidden layer 2.')
-flags.DEFINE_integer('steps_per_checkpoint', 100, 'Number of steps before running test set.')
+flags.DEFINE_float('learning_rate', 0.1, 'Initial learning rate.')
+flags.DEFINE_integer('max_epoch', 100, 'Max number of epochs to train for.')
+flags.DEFINE_integer('num_layers', 3, 'Number of hidden layers.')
+flags.DEFINE_integer('hidden_size', 100, 'Number of hidden units in hidden layers')
+flags.DEFINE_integer('batch_size', 200, 'Size of minibatches.')
+flags.DEFINE_integer('steps_per_checkpoint', 50, 'Number of steps before running test set.')
 flags.DEFINE_float('lr_decay_factor', 0.97, 'Factor by which to decay learning rate.')
 flags.DEFINE_integer('max_seq_length', 200, 'Maximum length of input token sequence')
 flags.DEFINE_integer('grad_clip', 5, 'Max gradient norm')
-flags.DEFINE_integer('max_vocab_size', 10000, 'Maximum size of source vocab')
-flags.DEFINE_float('dropout', 1.0, 'Probability of hidden inputs being removed')
+flags.DEFINE_integer('max_vocab_size', 40000, 'Maximum size of source vocab')
+flags.DEFINE_float('dropout', 0.9, 'Probability of hidden inputs being removed')
 flags.DEFINE_float('train_frac', 0.7, 'Number between 0 and 1 indicating percentage of\
  data to use for training (rest goes to test set)')
 flags.DEFINE_string('checkpoint_dir', 'data/checkpoints/', 'Directory to store/restore checkpoints')
