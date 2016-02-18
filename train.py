@@ -25,17 +25,17 @@ import util.vocabmapping
 
 flags = tf.app.flags
 FLAGS = flags.FLAGS
-flags.DEFINE_float('learning_rate', 0.1, 'Initial learning rate.')
+flags.DEFINE_float('learning_rate', 0.05, 'Initial learning rate.')
 flags.DEFINE_integer('max_epoch', 100, 'Max number of epochs to train for.')
-flags.DEFINE_integer('num_layers', 1, 'Number of hidden layers.')
-flags.DEFINE_integer('hidden_size', 100, 'Number of hidden units in hidden layers')
-flags.DEFINE_integer('batch_size', 200, 'Size of minibatches.')
+flags.DEFINE_integer('num_layers', 2, 'Number of hidden layers.')
+flags.DEFINE_integer('hidden_size', 95, 'Number of hidden units in hidden layers')
+flags.DEFINE_integer('batch_size', 150, 'Size of minibatches.')
 flags.DEFINE_integer('steps_per_checkpoint', 50, 'Number of steps before running test set.')
 flags.DEFINE_float('lr_decay_factor', 0.97, 'Factor by which to decay learning rate.')
 flags.DEFINE_integer('max_seq_length', 200, 'Maximum length of input token sequence')
 flags.DEFINE_integer('grad_clip', 5, 'Max gradient norm')
-flags.DEFINE_integer('max_vocab_size', 10000, 'Maximum size of source vocab')
-flags.DEFINE_float('dropout', 0.9, 'Probability of hidden inputs being removed')
+flags.DEFINE_integer('max_vocab_size', 25000, 'Maximum size of source vocab')
+flags.DEFINE_float('dropout', 1.0, 'Probability of hidden inputs being removed')
 flags.DEFINE_float('train_frac', 0.7, 'Number between 0 and 1 indicating percentage of\
  data to use for training (rest goes to test set)')
 flags.DEFINE_string('checkpoint_dir', 'data/checkpoints/', 'Directory to store/restore checkpoints')
@@ -92,7 +92,6 @@ def main():
             # Once in a while, we save checkpoint, print statistics, and run evals.
             if step % FLAGS.steps_per_checkpoint == 0:
                 writer.add_summary(str_summary, step)
-
                 # Print statistics for the previous epoch.
                 print ("global step %d learning rate %.7f step-time %.2f loss %.4f"
                 % (model.global_step.eval(), model.learning_rate.eval(),
@@ -104,17 +103,18 @@ def main():
                 # Save checkpoint and zero timer and loss.
                 checkpoint_path = os.path.join(FLAGS.checkpoint_dir, "sentiment.ckpt")
                 model.saver.save(sess, checkpoint_path, global_step=model.global_step)
-                step_time, loss, accuracy = 0.0, 0.0, 0.0
+                step_time, loss = 0.0, 0.0
                 # Run evals on test set and print their accuracy.
                 print "Running test set"
                 for test_step in xrange(len(model.test_data)):
                     inputs, targets, seq_lengths = model.getBatch(True)
-                    test_acc, test_loss, _ = model.step(sess, inputs, targets, seq_lengths, True)
+                    str_summary, test_loss, _ = model.step(sess, inputs, targets, seq_lengths, True)
                     loss += test_loss
-                    accuracy += test_acc
-                print "Test loss: {0} Accuracy: {1}".format(loss / len(model.test_data), accuracy / len(model.test_data))
+                normalized_test_loss = loss / len(model.test_data)
+                writer.add_summary(str_summary, step)
+                print "Test loss: {0}".format(normalized_test_loss)
                 print "-------Step {0}/{1}------".format(step,tot_steps)
-                loss, accuracy = 0.0, 0.0
+                loss = 0.0
                 sys.stdout.flush()
 
 def createModel(session, vocab_size):
@@ -124,10 +124,10 @@ def createModel(session, vocab_size):
     saveHyperParameters(vocab_size)
     ckpt = tf.train.get_checkpoint_state(FLAGS.checkpoint_dir)
     if ckpt and gfile.Exists(ckpt.model_checkpoint_path):
-        print("Reading model parameters from %s" % ckpt.model_checkpoint_path)
+        print "Reading model parameters from {0}".format(ckpt.model_checkpoint_path)
         model.saver.restore(session, ckpt.model_checkpoint_path)
     else:
-        print("Created model with fresh parameters.")
+        print "Created model with fresh parameters."
         session.run(tf.initialize_all_variables())
     return model
 

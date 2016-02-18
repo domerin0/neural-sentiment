@@ -36,6 +36,7 @@ class SentimentModel(object):
 		#seq_input: list of tensors, each tensor is size max_seq_length
 		#target: a list of values betweeen 0 and 1 indicating target scores
 		#seq_lengths:the early stop lengths of each input tensor
+		self.str_summary_type = tf.placeholder(tf.string,name="str_summary_type")
 		for i in range(max_seq_length):
 			self.seq_input.append(tf.placeholder(tf.int32, shape=[None],
 			name="input{0}".format(i)))
@@ -73,12 +74,10 @@ class SentimentModel(object):
 		#compute losses, minimize cross entropy
 		with tf.name_scope("loss") as scope:
 			self.losses = tf.reduce_mean(tf.nn.softmax_cross_entropy_with_logits(self.y, self.target))
-			loss_summ = tf.scalar_summary("loss", self.losses)
 		self.y = tf.nn.softmax(self.y)
 		correct_prediction = tf.equal(tf.argmax(self.y,1), tf.argmax(self.target,1))
 		with tf.name_scope("accuracy") as scope:
 			self.accuracy = tf.reduce_mean(tf.cast(correct_prediction, tf.float32))
-			acc_summ = tf.scalar_summary("accuracy", self.accuracy)
 
 		params = tf.trainable_variables()
 		if not forward_only:
@@ -89,8 +88,10 @@ class SentimentModel(object):
 			with tf.name_scope("grad_norms") as scope:
 				grad_summ = tf.scalar_summary("grad_norms", norm)
 			self.update = opt.apply_gradients(zip(clipped_gradients, params), global_step=self.global_step)
-			self.saver = tf.train.Saver(tf.all_variables())
-			self.merged = tf.merge_all_summaries()
+			loss_summ = tf.scalar_summary("{0}_loss".format(self.str_summary_type), self.losses)
+			acc_summ = tf.scalar_summary("{0}_accuracy".format(self.str_summary_type), self.accuracy)
+			self.merged = tf.merge_summary([loss_summ, acc_summ])
+		self.saver = tf.train.Saver(tf.all_variables())
 
 	def getBatch(self, test_data=False):
 		'''
@@ -175,7 +176,7 @@ class SentimentModel(object):
 		Returns:
 		merged_tb_vars, loss, none
 		or (in forward only):
-		accuracy, loss, outputs
+		merged_tb_vars, loss, outputs
 		'''
 		input_feed = {}
 		for i in xrange(self.max_seq_length):
@@ -183,9 +184,11 @@ class SentimentModel(object):
 		input_feed[self.target.name] = targets
 		input_feed[self.seq_lengths.name] = seq_lengths
 		if not forward_only:
+			input_feed[self.str_summary_type.name] = "train"
 			output_feed = [self.merged, self.losses, self.update]
 		else:
-			output_feed = [self.accuracy, self.losses, self.y]
+			input_feed[self.str_summary_type.name] = "test"
+			output_feed = [self.merged, self.losses, self.y]
 		outputs = session.run(output_feed, input_feed)
 		if not forward_only:
 			return outputs[0], outputs[1], None
