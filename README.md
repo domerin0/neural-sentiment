@@ -9,7 +9,7 @@ A sentiment analyzer using deep rnns, built with TensorFlow.
 
 Next you will need to download the nltk tokenizer dataset:
 
-1. run a python session in terminal `python`
+1. run a python session in terminal `$ python`
 2. `>>> import nltk`
 3. `>>> nltk.download()`
 4. type 'd', then hit enter
@@ -50,7 +50,7 @@ When you first run train.py, it will download the data set, unzip, and process i
 
 After your model is trained you can run:
 
-`$ python sample.py --text="Your text to sample here"` 
+`$ python sample.py --text="Your text to sample here"`
 
 It will return 0 or 1. This number corresponds to a positive (1), or a negative (0) score.
 

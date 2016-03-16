@@ -25,17 +25,17 @@ import util.vocabmapping
 
 flags = tf.app.flags
 FLAGS = flags.FLAGS
-flags.DEFINE_float('learning_rate', 0.1, 'Initial learning rate.')
-flags.DEFINE_integer('max_epoch', 100, 'Max number of epochs to train for.')
-flags.DEFINE_integer('num_layers', 2, 'Number of hidden layers.')
-flags.DEFINE_integer('hidden_size', 110, 'Number of hidden units in hidden layers')
+flags.DEFINE_float('learning_rate', 0.01, 'Initial learning rate.')
+flags.DEFINE_integer('max_epoch', 80, 'Max number of epochs to train for.')
+flags.DEFINE_integer('num_layers', 1, 'Number of hidden layers.')
+flags.DEFINE_integer('hidden_size', 125, 'Number of hidden units in hidden layers')
 flags.DEFINE_integer('batch_size', 150, 'Size of minibatches.')
 flags.DEFINE_integer('steps_per_checkpoint', 50, 'Number of steps before running test set.')
 flags.DEFINE_float('lr_decay_factor', 0.97, 'Factor by which to decay learning rate.')
 flags.DEFINE_integer('max_seq_length', 200, 'Maximum length of input token sequence')
 flags.DEFINE_integer('grad_clip', 5, 'Max gradient norm')
-flags.DEFINE_integer('max_vocab_size', 25000, 'Maximum size of source vocab')
-flags.DEFINE_float('dropout', 0.6, 'Probability of hidden inputs being removed')
+flags.DEFINE_integer('max_vocab_size', 10000, 'Maximum size of source vocab')
+flags.DEFINE_float('dropout', 0.8, 'Probability of hidden inputs being removed')
 flags.DEFINE_float('train_frac', 0.7, 'Number between 0 and 1 indicating percentage of\
  data to use for training (rest goes to test set)')
 flags.DEFINE_string('checkpoint_dir', 'data/checkpoints/', 'Directory to store/restore checkpoints')
@@ -63,7 +63,7 @@ def main():
     train_start_end_index = [0, int(FLAGS.train_frac * len(data))]
     test_start_end_index = [int(FLAGS.train_frac * len(data)) + 1, len(data) - 1]
     print "Number of training examples per batch: {0}, \
-    number of batches per epoch: {1}".format(FLAGS.batch_size,num_batches)
+    \nnumber of batches per epoch: {1}".format(FLAGS.batch_size,num_batches)
     with tf.Session() as sess:
         writer = tf.train.SummaryWriter("/tmp/tb_logs", sess.graph_def)
         model = createModel(sess, vocab_size)
