@@ -25,17 +25,17 @@ import util.vocabmapping
 
 flags = tf.app.flags
 FLAGS = flags.FLAGS
-flags.DEFINE_float('learning_rate', 0.05, 'Initial learning rate.')
+flags.DEFINE_float('learning_rate', 0.1, 'Initial learning rate.')
 flags.DEFINE_integer('max_epoch', 100, 'Max number of epochs to train for.')
 flags.DEFINE_integer('num_layers', 2, 'Number of hidden layers.')
-flags.DEFINE_integer('hidden_size', 95, 'Number of hidden units in hidden layers')
+flags.DEFINE_integer('hidden_size', 110, 'Number of hidden units in hidden layers')
 flags.DEFINE_integer('batch_size', 150, 'Size of minibatches.')
 flags.DEFINE_integer('steps_per_checkpoint', 50, 'Number of steps before running test set.')
 flags.DEFINE_float('lr_decay_factor', 0.97, 'Factor by which to decay learning rate.')
 flags.DEFINE_integer('max_seq_length', 200, 'Maximum length of input token sequence')
 flags.DEFINE_integer('grad_clip', 5, 'Max gradient norm')
 flags.DEFINE_integer('max_vocab_size', 25000, 'Maximum size of source vocab')
-flags.DEFINE_float('dropout', 1.0, 'Probability of hidden inputs being removed')
+flags.DEFINE_float('dropout', 0.6, 'Probability of hidden inputs being removed')
 flags.DEFINE_float('train_frac', 0.7, 'Number between 0 and 1 indicating percentage of\
  data to use for training (rest goes to test set)')
 flags.DEFINE_string('checkpoint_dir', 'data/checkpoints/', 'Directory to store/restore checkpoints')
@@ -103,26 +103,28 @@ def main():
                 # Save checkpoint and zero timer and loss.
                 checkpoint_path = os.path.join(FLAGS.checkpoint_dir, "sentiment.ckpt")
                 model.saver.save(sess, checkpoint_path, global_step=model.global_step)
-                step_time, loss = 0.0, 0.0
+                step_time, loss, test_accuracy = 0.0, 0.0, 0.0
                 # Run evals on test set and print their accuracy.
                 print "Running test set"
                 for test_step in xrange(len(model.test_data)):
                     inputs, targets, seq_lengths = model.getBatch(True)
-                    str_summary, test_loss, _ = model.step(sess, inputs, targets, seq_lengths, True)
+                    str_summary, test_loss, _, accuracy = model.step(sess, inputs, targets, seq_lengths, True)
                     loss += test_loss
-                normalized_test_loss = loss / len(model.test_data)
+                    test_accuracy += accuracy
+                normalized_test_loss, normalized_test_accuracy = loss / len(model.test_data), test_accuracy / len(model.test_data)
                 writer.add_summary(str_summary, step)
-                print "Test loss: {0}".format(normalized_test_loss)
+                print "Avg Test Loss: {0}, Avg Test Accuracy: {1}".format(normalized_test_loss, normalized_test_accuracy)
                 print "-------Step {0}/{1}------".format(step,tot_steps)
                 loss = 0.0
                 sys.stdout.flush()
 
 def createModel(session, vocab_size):
+    path = getCheckpointPath()
     model = models.sentiment.SentimentModel(vocab_size, FLAGS.hidden_size,
     FLAGS.dropout, FLAGS.num_layers, FLAGS.grad_clip, FLAGS.max_seq_length,
     FLAGS.learning_rate, FLAGS.lr_decay_factor)
     saveHyperParameters(vocab_size)
-    ckpt = tf.train.get_checkpoint_state(FLAGS.checkpoint_dir)
+    ckpt = tf.train.get_checkpoint_state(path)
     if ckpt and gfile.Exists(ckpt.model_checkpoint_path):
         print "Reading model parameters from {0}".format(ckpt.model_checkpoint_path)
         model.saver.restore(session, ckpt.model_checkpoint_path)
@@ -130,6 +132,34 @@ def createModel(session, vocab_size):
         print "Created model with fresh parameters."
         session.run(tf.initialize_all_variables())
     return model
+
+def getCheckpointPath():
+    '''
+    Check if new hyper params match with old ones
+    if not, then create a new model in a new Directory
+    Returns:
+    path to checkpoint directory
+    '''
+    old_path = os.path.join(FLAGS.checkpoint_dir, "hyperparams.npy")
+    if os.path.exists(old_path):
+        params = np.load(old_path)
+        ok = \
+        params[3] == FLAGS.num_layers and \
+        params[1] == FLAGS.hidden_size and \
+        params[2] == FLAGS.dropout and \
+        params[5] == FLAGS.max_seq_length and \
+        params[0] == FLAGS.max_vocab_size
+        if ok:
+            return FLAGS.checkpoint_dir
+        else:
+            path = os.path.join("data/checkpoints/", str(int(time.time())))
+            if not os.path.exists(path):
+                os.makedirs(path)
+            print "hyper parameters changed, training new model at {0}".format(path)
+            return path
+    else:
+        return FLAGS.checkpoint_dir
+
 
 '''
 This function is sort of silly, but I don't know how else to restore the model

@@ -57,16 +57,16 @@ class SentimentModel(object):
 
 		#Get average last hidden state over time
 		# size of concat_states = (batch_size * seq_length) x hidden_size
-		concat_states =  tf.pack(encoder_state)
+		#concat_states =  tf.pack(encoder_outputs)
 
 		#size of avg_states = batch_size x hidden_size*2
-		avg_states = tf.reduce_mean(concat_states, 0)
+		#avg_states = tf.reduce_mean(concat_states, 0)
 
 		#size of avg_last_state = batch_size x hidden_size
-		avg_last_state = tf.slice(avg_states, [0, hidden_size], [-1, hidden_size])
+		avg_last_state = tf.slice(encoder_state, [0, (num_layers - 1) *cell.output_size], [-1, cell.output_size])
 
 		#output logistic regression layer
-		weights = tf.Variable(tf.random_normal([hidden_size,self.num_classes], stddev=0.01))
+		weights = tf.Variable(tf.random_normal([cell.output_size,self.num_classes], stddev=0.01))
 		bias = tf.Variable(tf.random_normal([self.num_classes], stddev=0.01))
 
 		with tf.name_scope("output_proj") as scope:
@@ -188,9 +188,9 @@ class SentimentModel(object):
 			output_feed = [self.merged, self.losses, self.update]
 		else:
 			input_feed[self.str_summary_type.name] = "test"
-			output_feed = [self.merged, self.losses, self.y]
+			output_feed = [self.merged, self.losses, self.y, self.accuracy]
 		outputs = session.run(output_feed, input_feed)
 		if not forward_only:
 			return outputs[0], outputs[1], None
 		else:
-			return outputs[0], outputs[1], outputs[2]
+			return outputs[0], outputs[1], outputs[2], outputs[3]
