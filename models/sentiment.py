@@ -2,7 +2,7 @@
 import tensorflow as tf
 from tensorflow.models.rnn import rnn, rnn_cell, seq2seq
 import numpy as np
-
+#pragma acc routine seq
 class SentimentModel(object):
 	'''
 	Sentiment Model
@@ -18,7 +18,7 @@ class SentimentModel(object):
 	'''
 	def __init__(self, vocab_size, hidden_size, dropout,
 	num_layers, max_gradient_norm, max_seq_length,
-	learning_rate, lr_decay, forward_only=False):
+	learning_rate, lr_decay,batch_size, forward_only=False):
 		self.num_classes =2
 		self.vocab_size = vocab_size
 		self.learning_rate = tf.Variable(float(learning_rate), trainable=False)
@@ -27,7 +27,9 @@ class SentimentModel(object):
 		initializer = tf.random_uniform_initializer(-1,1)
 		self.batch_pointer = 0
 		self.seq_input = []
+		self.batch_size = batch_size
 		self.seq_lengths = []
+		self.projection_dim = hidden_size
 		self.dropout = dropout
 		self.max_gradient_norm = max_gradient_norm
 		self.global_step = tf.Variable(0, trainable=False)
@@ -37,60 +39,86 @@ class SentimentModel(object):
 		#target: a list of values betweeen 0 and 1 indicating target scores
 		#seq_lengths:the early stop lengths of each input tensor
 		self.str_summary_type = tf.placeholder(tf.string,name="str_summary_type")
-		for i in range(max_seq_length):
-			self.seq_input.append(tf.placeholder(tf.int32, shape=[None],
-			name="input{0}".format(i)))
+		#for i in range(max_seq_length):
+		#	self.seq_input.append(tf.placeholder(tf.int32, shape=[None],
+		#	name="input{0}".format(i)))
+		self.seq_input = tf.placeholder(tf.int32, shape=[None, max_seq_length],
+		name="input")
 		self.target = tf.placeholder(tf.float32, name="target", shape=[None,self.num_classes])
 		self.seq_lengths = tf.placeholder(tf.int32, shape=[None],
 		name="early_stop")
 
-		cell = rnn_cell.LSTMCell(hidden_size, hidden_size, initializer=initializer)
-		#If multiple layers are wanted
-		if num_layers >1:
-			cell = rnn_cell.MultiRNNCell([cell] * num_layers)
-		if not forward_only and dropout < 1.0:
-			cell = rnn_cell.DropoutWrapper(cell, input_keep_prob=dropout)
-		#create input embedding layer
-		cell = rnn_cell.EmbeddingWrapper(cell, vocab_size)
+		self.dropout_keep_prob_embedding = tf.constant(self.dropout)
+		self.dropout_keep_prob_lstm_input = tf.constant(self.dropout)
+		self.dropout_keep_prob_lstm_output = tf.constant(self.dropout)
 
-		encoder_outputs, encoder_state = rnn.rnn(cell, self.seq_input, dtype=tf.float32)
+		with tf.variable_scope("embedding"), tf.device("/cpu:0"):
+			W = tf.get_variable(
+				"W",
+				[self.vocab_size, hidden_size],
+				initializer=tf.random_uniform_initializer(-1.0, 1.0))
+			self.embedded_tokens = tf.nn.embedding_lookup(W, self.seq_input)
+			self.embedded_tokens_drop = tf.nn.dropout(self.embedded_tokens, self.dropout_keep_prob_embedding)
 
-		_, last_state = tf.split(1, 2, encoder_state)
+		#Using this process to get all hidden states across time is from:
+		#https://github.com/dennybritz/tf-models/blob/master/tfmodels/models/rnn/rnn_classifier.py
+		with tf.variable_scope("lstm") as scope:
+			# The RNN cell
+			single_cell = rnn_cell.DropoutWrapper(
+				rnn_cell.LSTMCell(hidden_size, hidden_size, initializer=tf.random_uniform_initializer(-1.0, 1.0)),
+				input_keep_prob=self.dropout_keep_prob_lstm_input,
+				output_keep_prob=self.dropout_keep_prob_lstm_output)
+			self.cell = rnn_cell.MultiRNNCell([single_cell] * num_layers)
+			# Build the recurrence. We do this manually to use truncated backprop
+			self.initial_state = tf.zeros([self.batch_size, self.cell.state_size])
+			self.encoder_states = [self.initial_state]
+			self.encoder_outputs = []
+			for i in range(self.max_seq_length):
+				if i > 0:
+					scope.reuse_variables()
+				new_output, new_state = self.cell(self.embedded_tokens_drop[:, i, :], self.encoder_states[-1])
+				#if i < max(0, self.sequence_length - self.backprop_truncate_after):
+				new_state = tf.stop_gradient(new_state)
+				self.encoder_outputs.append(new_output)
+				self.encoder_states.append(new_state)
+				#split the ccncatenated state into cell state and hidden state
+			concat_states =  tf.pack(self.encoder_states)
+			avg_states = tf.reduce_mean(concat_states, 0)
+			_, self.final_state = tf.split(1,2,avg_states)
+			self.final_output = self.encoder_outputs[-1]
 
-		#Get average last hidden state over time
-		# size of concat_states = (batch_size * seq_length) x hidden_size
-		#concat_states =  tf.pack(encoder_outputs)
+		with tf.variable_scope("output_projection"):
+			W = tf.get_variable(
+				"W",
+				[self.projection_dim, self.num_classes],
+				initializer=tf.truncated_normal_initializer(stddev=0.1))
+			b = tf.get_variable(
+				"b",
+				[self.num_classes],
+				initializer=tf.constant_initializer(0.1))
+			self.scores = tf.nn.xw_plus_b(self.final_state, W, b)
+			self.y = tf.nn.softmax(self.scores)
+			self.predictions = tf.argmax(self.scores, 1)
 
-		#size of avg_states = batch_size x hidden_size*2
-		#avg_states = tf.reduce_mean(concat_states, 0)
+		with tf.variable_scope("loss"):
+			self.losses = tf.nn.softmax_cross_entropy_with_logits(self.scores, self.target, name="ce_losses")
+			self.total_loss = tf.reduce_sum(self.losses)
+			self.mean_loss = tf.reduce_mean(self.losses)
 
-		#size of avg_last_state = batch_size x hidden_size
-		#avg_last_state = tf.slice(encoder_state, [0, (num_layers - 1) *cell.output_size], [-1, cell.output_size])
-
-		#output logistic regression layer
-		weights = tf.Variable(tf.random_normal([hidden_size,self.num_classes], stddev=0.01))
-		bias = tf.Variable(tf.random_normal([self.num_classes], stddev=0.01))
-
-		with tf.name_scope("output_proj") as scope:
-			self.y = tf.matmul(last_state, weights) + bias
-		#compute losses, minimize cross entropy
-		with tf.name_scope("loss") as scope:
-			self.losses = tf.reduce_mean(tf.nn.softmax_cross_entropy_with_logits(self.y, self.target))
-		self.y = tf.nn.softmax(self.y)
-		correct_prediction = tf.equal(tf.argmax(self.y,1), tf.argmax(self.target,1))
-		with tf.name_scope("accuracy") as scope:
-			self.accuracy = tf.reduce_mean(tf.cast(correct_prediction, tf.float32))
+		with tf.variable_scope("accuracy"):
+			self.correct_predictions = tf.equal(self.predictions, tf.argmax(self.target, 1))
+			self.accuracy = tf.reduce_mean(tf.cast(self.correct_predictions, "float"), name="accuracy")
 
 		params = tf.trainable_variables()
 		if not forward_only:
 			with tf.name_scope("train") as scope:
-				opt = tf.train.GradientDescentOptimizer(self.learning_rate)
+				opt = tf.train.AdamOptimizer()
 			gradients = tf.gradients(self.losses, params)
 			clipped_gradients, norm = tf.clip_by_global_norm(gradients, self.max_gradient_norm)
 			with tf.name_scope("grad_norms") as scope:
 				grad_summ = tf.scalar_summary("grad_norms", norm)
 			self.update = opt.apply_gradients(zip(clipped_gradients, params), global_step=self.global_step)
-			loss_summ = tf.scalar_summary("{0}_loss".format(self.str_summary_type), self.losses)
+			loss_summ = tf.scalar_summary("{0}_loss".format(self.str_summary_type), self.mean_loss)
 			acc_summ = tf.scalar_summary("{0}_accuracy".format(self.str_summary_type), self.accuracy)
 			self.merged = tf.merge_summary([loss_summ, acc_summ])
 		self.saver = tf.train.Saver(tf.all_variables())
@@ -109,31 +137,30 @@ class SentimentModel(object):
 		A numpy arrays for inputs, target, and seq_lengths
 
 		'''
-		batch_inputs = []
+		#batch_inputs = []
 		if not test_data:
-			temp = self.train_data[self.train_batch_pointer].transpose()
-			for i in range(self.max_seq_length):
-				batch_inputs.append(temp[i])
+			batch_inputs = self.train_data[self.train_batch_pointer]#.transpose()
+			#for i in range(self.max_seq_length):
+			#	batch_inputs.append(temp[i])
 			targets = self.train_targets[self.train_batch_pointer]
 			seq_lengths = self.train_sequence_lengths[self.train_batch_pointer]
 			self.train_batch_pointer += 1
 			self.train_batch_pointer = self.train_batch_pointer % len(self.train_data)
 			return batch_inputs, targets, seq_lengths
 		else:
-			temp = self.test_data[self.test_batch_pointer].transpose()
-			for i in range(self.max_seq_length):
-				batch_inputs.append(temp[i])
+			batch_inputs = self.test_data[self.test_batch_pointer]#.transpose()
+			#for i in range(self.max_seq_length):
+			#	batch_inputs.append(temp[i])
 			targets = self.test_targets[self.test_batch_pointer]
 			seq_lengths = self.test_sequence_lengths[self.test_batch_pointer]
 			self.test_batch_pointer += 1
 			self.test_batch_pointer = self.test_batch_pointer % len(self.test_data)
 			return batch_inputs, targets, seq_lengths
 
-	def initData(self, data, batch_size, train_start_end_index, test_start_end_index):
+	def initData(self, data, train_start_end_index, test_start_end_index):
 		'''
 		Split data into train/test sets and load into memory
 		'''
-		self.batch_size = batch_size
 		self.train_batch_pointer = 0
 		self.test_batch_pointer = 0
 		#cutoff non even number of batches
@@ -145,12 +172,12 @@ class SentimentModel(object):
 
 		self.train_data = data[train_start_end_index[0]: train_start_end_index[1]]
 		self.test_data = data[test_start_end_index[0]:test_start_end_index[1]]
-		self.test_num_batch = len(self.test_data) / batch_size
+		self.test_num_batch = len(self.test_data) / self.batch_size
 
-		num_train_batches = len(self.train_data) / batch_size
-	 	num_test_batches = len(self.test_data) / batch_size
-		train_cutoff = len(self.train_data) - (len(self.train_data) % batch_size)
-		test_cutoff = len(self.test_data) - (len(self.test_data) % batch_size)
+		num_train_batches = len(self.train_data) / self.batch_size
+		num_test_batches = len(self.test_data) / self.batch_size
+		train_cutoff = len(self.train_data) - (len(self.train_data) % self.batch_size)
+		test_cutoff = len(self.test_data) - (len(self.test_data) % self.batch_size)
 		self.train_data = self.train_data[:train_cutoff]
 		self.test_data = self.test_data[:test_cutoff]
 
@@ -160,7 +187,7 @@ class SentimentModel(object):
 		self.train_targets = np.split(self.train_targets, num_train_batches)
 		self.train_data = np.split(self.train_data, num_train_batches)
 
-		print "test size is: {0}, splitting into {1} batches".format(len(self.test_data), num_test_batches)
+		print "Test size is: {0}, splitting into {1} batches".format(len(self.test_data), num_test_batches)
 		self.test_data = np.split(self.test_data, num_test_batches)
 		self.test_targets = onehot[test_start_end_index[0]:test_start_end_index[1]][:test_cutoff]
 		self.test_targets = np.split(self.test_targets, num_test_batches)
@@ -181,16 +208,16 @@ class SentimentModel(object):
 		merged_tb_vars, loss, outputs
 		'''
 		input_feed = {}
-		for i in xrange(self.max_seq_length):
-			input_feed[self.seq_input[i].name] = inputs[i]
+		#for i in xrange(self.max_seq_length):
+		input_feed[self.seq_input.name] = inputs
 		input_feed[self.target.name] = targets
 		input_feed[self.seq_lengths.name] = seq_lengths
 		if not forward_only:
 			input_feed[self.str_summary_type.name] = "train"
-			output_feed = [self.merged, self.losses, self.update]
+			output_feed = [self.merged, self.mean_loss, self.update]
 		else:
 			input_feed[self.str_summary_type.name] = "test"
-			output_feed = [self.merged, self.losses, self.y, self.accuracy]
+			output_feed = [self.merged, self.mean_loss, self.y, self.accuracy]
 		outputs = session.run(output_feed, input_feed)
 		if not forward_only:
 			return outputs[0], outputs[1], None

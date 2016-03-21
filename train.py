@@ -25,11 +25,11 @@ import util.vocabmapping
 
 flags = tf.app.flags
 FLAGS = flags.FLAGS
-flags.DEFINE_float('learning_rate', 0.01, 'Initial learning rate.')
-flags.DEFINE_integer('max_epoch', 80, 'Max number of epochs to train for.')
+flags.DEFINE_float('learning_rate', 0.0001, 'Initial learning rate.')
+flags.DEFINE_integer('max_epoch', 300, 'Max number of epochs to train for.')
 flags.DEFINE_integer('num_layers', 1, 'Number of hidden layers.')
-flags.DEFINE_integer('hidden_size', 125, 'Number of hidden units in hidden layers')
-flags.DEFINE_integer('batch_size', 150, 'Size of minibatches.')
+flags.DEFINE_integer('hidden_size', 128, 'Number of hidden units in hidden layers')
+flags.DEFINE_integer('batch_size', 25, 'Size of minibatches.')
 flags.DEFINE_integer('steps_per_checkpoint', 50, 'Number of steps before running test set.')
 flags.DEFINE_float('lr_decay_factor', 0.97, 'Factor by which to decay learning rate.')
 flags.DEFINE_integer('max_seq_length', 200, 'Maximum length of input token sequence')
@@ -58,12 +58,13 @@ def main():
     for i in range(1, len(infile)):
         data = np.vstack((data, np.load(os.path.join(path, infile[i]))))
     np.random.shuffle(data)
+    #data = data[:3000]
     num_batches = len(data) / FLAGS.batch_size
     # 70/30 splir for train/test
     train_start_end_index = [0, int(FLAGS.train_frac * len(data))]
     test_start_end_index = [int(FLAGS.train_frac * len(data)) + 1, len(data) - 1]
     print "Number of training examples per batch: {0}, \
-    \nnumber of batches per epoch: {1}".format(FLAGS.batch_size,num_batches)
+    \nNumber of batches per epoch: {1}".format(FLAGS.batch_size,num_batches)
     with tf.Session() as sess:
         writer = tf.train.SummaryWriter("/tmp/tb_logs", sess.graph_def)
         model = createModel(sess, vocab_size)
@@ -77,7 +78,7 @@ def main():
         step_time, loss = 0.0, 0.0
         previous_losses = []
         tot_steps = num_batches * FLAGS.max_epoch
-        model.initData(data,FLAGS.batch_size, train_start_end_index, test_start_end_index)
+        model.initData(data, train_start_end_index, test_start_end_index)
         #starting at step 1 to prevent test set from running after first batch
         for step in xrange(1, tot_steps):
             # Get a batch and make a step.
@@ -122,7 +123,7 @@ def createModel(session, vocab_size):
     path = getCheckpointPath()
     model = models.sentiment.SentimentModel(vocab_size, FLAGS.hidden_size,
     FLAGS.dropout, FLAGS.num_layers, FLAGS.grad_clip, FLAGS.max_seq_length,
-    FLAGS.learning_rate, FLAGS.lr_decay_factor)
+    FLAGS.learning_rate, FLAGS.lr_decay_factor, FLAGS.batch_size)
     saveHyperParameters(vocab_size)
     ckpt = tf.train.get_checkpoint_state(path)
     if ckpt and gfile.Exists(ckpt.model_checkpoint_path):
@@ -152,7 +153,9 @@ def getCheckpointPath():
         if ok:
             return FLAGS.checkpoint_dir
         else:
-            path = os.path.join("data/checkpoints/", str(int(time.time())))
+            infostring = "hiddensize_{0}_dropout_{1}_numlayers_{2}".format(FLAGS.hidden_size,
+            FLAGS.dropout, FLAGS.num_layers)
+            path = os.path.join("data/checkpoints/", str(int(time.time())) + infostring)
             if not os.path.exists(path):
                 os.makedirs(path)
             print "hyper parameters changed, training new model at {0}".format(path)
