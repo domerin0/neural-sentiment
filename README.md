@@ -27,6 +27,9 @@ To try other hyper-parameters:
 
 `$ python train.py --dropout=0.8 --hidden_size=120` etc...
 
+It will automatically check if parameters in checkpoint_dir match, if not it will
+make a new directory inside checkpoint_dir to train the new network
+
 The modifiable hyper-parameters are:
 
 
@@ -57,6 +60,8 @@ It will return 0 or 1. This number corresponds to a positive (1), or a negative 
 ### Model
 
 The model is: embedding layer -> LSTMCells -> logistic regression output layer. I'll provide a picture in the future.
+
+The hidden state averaged across all time steps is what is passed to the logistic regression layer.
 
 ### Tensorboard Usage
 
