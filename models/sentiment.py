@@ -2,7 +2,7 @@
 import tensorflow as tf
 from tensorflow.models.rnn import rnn, rnn_cell, seq2seq
 import numpy as np
-#pragma acc routine seq
+
 class SentimentModel(object):
 	'''
 	Sentiment Model
@@ -78,19 +78,20 @@ class SentimentModel(object):
 					scope.reuse_variables()
 				new_output, new_state = self.cell(self.embedded_tokens_drop[:, i, :], self.encoder_states[-1])
 				#if i < max(0, self.sequence_length - self.backprop_truncate_after):
-				new_state = tf.stop_gradient(new_state)
+				#new_state = tf.stop_gradient(new_state)
 				self.encoder_outputs.append(new_output)
 				self.encoder_states.append(new_state)
 				#split the ccncatenated state into cell state and hidden state
 			concat_states =  tf.pack(self.encoder_states)
 			avg_states = tf.reduce_mean(concat_states, 0)
 			_, self.final_state = tf.split(1,2,avg_states)
-			self.final_output = self.encoder_outputs[-1]
+			self.final_state = tf.slice(self.final_state, [0,hidden_size*(num_layers - 1)], [-1,hidden_size])
+			#self.final_output = self.encoder_outputs[-1]
 
 		with tf.variable_scope("output_projection"):
 			W = tf.get_variable(
 				"W",
-				[self.projection_dim, self.num_classes],
+				[hidden_size, self.num_classes],
 				initializer=tf.truncated_normal_initializer(stddev=0.1))
 			b = tf.get_variable(
 				"b",
@@ -112,7 +113,7 @@ class SentimentModel(object):
 		params = tf.trainable_variables()
 		if not forward_only:
 			with tf.name_scope("train") as scope:
-				opt = tf.train.AdamOptimizer()
+				opt = tf.train.AdamOptimizer(self.learning_rate)
 			gradients = tf.gradients(self.losses, params)
 			clipped_gradients, norm = tf.clip_by_global_norm(gradients, self.max_gradient_norm)
 			with tf.name_scope("grad_norms") as scope:

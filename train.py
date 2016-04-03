@@ -25,17 +25,17 @@ import util.vocabmapping
 
 flags = tf.app.flags
 FLAGS = flags.FLAGS
-flags.DEFINE_float('learning_rate', 0.0001, 'Initial learning rate.')
-flags.DEFINE_integer('max_epoch', 300, 'Max number of epochs to train for.')
-flags.DEFINE_integer('num_layers', 1, 'Number of hidden layers.')
-flags.DEFINE_integer('hidden_size', 128, 'Number of hidden units in hidden layers')
-flags.DEFINE_integer('batch_size', 25, 'Size of minibatches.')
+flags.DEFINE_float('learning_rate', 0.01, 'Initial learning rate.')
+flags.DEFINE_integer('max_epoch', 50, 'Max number of epochs to train for.')
+flags.DEFINE_integer('num_layers', 2, 'Number of hidden layers.')
+flags.DEFINE_integer('hidden_size', 50, 'Number of hidden units in hidden layers')
+flags.DEFINE_integer('batch_size', 200, 'Size of minibatches.')
 flags.DEFINE_integer('steps_per_checkpoint', 50, 'Number of steps before running test set.')
 flags.DEFINE_float('lr_decay_factor', 0.97, 'Factor by which to decay learning rate.')
 flags.DEFINE_integer('max_seq_length', 200, 'Maximum length of input token sequence')
 flags.DEFINE_integer('grad_clip', 5, 'Max gradient norm')
-flags.DEFINE_integer('max_vocab_size', 10000, 'Maximum size of source vocab')
-flags.DEFINE_float('dropout', 0.8, 'Probability of hidden inputs being removed')
+flags.DEFINE_integer('max_vocab_size', 20000, 'Maximum size of source vocab')
+flags.DEFINE_float('dropout', 0.5, 'Probability of hidden inputs being removed')
 flags.DEFINE_float('train_frac', 0.7, 'Number between 0 and 1 indicating percentage of\
  data to use for training (rest goes to test set)')
 flags.DEFINE_string('checkpoint_dir', 'data/checkpoints/', 'Directory to store/restore checkpoints')
@@ -67,7 +67,8 @@ def main():
     \nNumber of batches per epoch: {1}".format(FLAGS.batch_size,num_batches)
     with tf.Session() as sess:
         writer = tf.train.SummaryWriter("/tmp/tb_logs", sess.graph_def)
-        model = createModel(sess, vocab_size)
+        path = getCheckpointPath()
+        model = createModel(sess, vocab_size, path)
     #train model and save to checkpoint
         print "Beggining training..."
         print "Maximum number of epochs to train for: {0}".format(FLAGS.max_epoch)
@@ -102,7 +103,7 @@ def main():
                     sess.run(model.learning_rate_decay_op)
                 previous_losses.append(loss)
                 # Save checkpoint and zero timer and loss.
-                checkpoint_path = os.path.join(FLAGS.checkpoint_dir, "sentiment.ckpt")
+                checkpoint_path = os.path.join(path, "sentiment.ckpt")
                 model.saver.save(sess, checkpoint_path, global_step=model.global_step)
                 step_time, loss, test_accuracy = 0.0, 0.0, 0.0
                 # Run evals on test set and print their accuracy.
@@ -119,12 +120,12 @@ def main():
                 loss = 0.0
                 sys.stdout.flush()
 
-def createModel(session, vocab_size):
-    path = getCheckpointPath()
+def createModel(session, vocab_size, path):
     model = models.sentiment.SentimentModel(vocab_size, FLAGS.hidden_size,
     FLAGS.dropout, FLAGS.num_layers, FLAGS.grad_clip, FLAGS.max_seq_length,
     FLAGS.learning_rate, FLAGS.lr_decay_factor, FLAGS.batch_size)
-    saveHyperParameters(vocab_size)
+    saveHyperParameters(vocab_size, path)
+    print path
     ckpt = tf.train.get_checkpoint_state(path)
     if ckpt and gfile.Exists(ckpt.model_checkpoint_path):
         print "Reading model parameters from {0}".format(ckpt.model_checkpoint_path)
@@ -171,11 +172,11 @@ makes it easier to store (and restore) the hyper parameters of the model.
 
 This only works because they are all numerical types.
 '''
-def saveHyperParameters(vocab_size):
+def saveHyperParameters(vocab_size, path):
     hParams = np.array([vocab_size, FLAGS.hidden_size,
     FLAGS.dropout, FLAGS.num_layers, FLAGS.grad_clip, FLAGS.max_seq_length,
     FLAGS.learning_rate, FLAGS.lr_decay_factor])
-    path = os.path.join(FLAGS.checkpoint_dir, "hyperparams.npy")
+    path = os.path.join(path, "hyperparams.npy")
     np.save(path, hParams)
 
 if __name__ == '__main__':
