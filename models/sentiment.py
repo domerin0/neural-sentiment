@@ -2,7 +2,7 @@
 import tensorflow as tf
 from tensorflow.models.rnn import rnn, rnn_cell, seq2seq
 import numpy as np
-#pragma acc routine seq
+
 class SentimentModel(object):
 	'''
 	Sentiment Model

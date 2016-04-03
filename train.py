@@ -26,7 +26,7 @@ import util.vocabmapping
 flags = tf.app.flags
 FLAGS = flags.FLAGS
 flags.DEFINE_float('learning_rate', 0.01, 'Initial learning rate.')
-flags.DEFINE_integer('max_epoch', 300, 'Max number of epochs to train for.')
+flags.DEFINE_integer('max_epoch', 50, 'Max number of epochs to train for.')
 flags.DEFINE_integer('num_layers', 2, 'Number of hidden layers.')
 flags.DEFINE_integer('hidden_size', 50, 'Number of hidden units in hidden layers')
 flags.DEFINE_integer('batch_size', 200, 'Size of minibatches.')
