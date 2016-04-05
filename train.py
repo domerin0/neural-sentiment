@@ -103,8 +103,6 @@ def main():
                     sess.run(model.learning_rate_decay_op)
                 previous_losses.append(loss)
                 # Save checkpoint and zero timer and loss.
-                checkpoint_path = os.path.join(path, "sentiment.ckpt")
-                model.saver.save(sess, checkpoint_path, global_step=model.global_step)
                 step_time, loss, test_accuracy = 0.0, 0.0, 0.0
                 # Run evals on test set and print their accuracy.
                 print "Running test set"
@@ -114,6 +112,8 @@ def main():
                     loss += test_loss
                     test_accuracy += accuracy
                 normalized_test_loss, normalized_test_accuracy = loss / len(model.test_data), test_accuracy / len(model.test_data)
+                checkpoint_path = os.path.join(path, "sentiment{0}.ckpt".format(normalized_test_accuracy))
+                model.saver.save(sess, checkpoint_path, global_step=model.global_step)
                 writer.add_summary(str_summary, step)
                 print "Avg Test Loss: {0}, Avg Test Accuracy: {1}".format(normalized_test_loss, normalized_test_accuracy)
                 print "-------Step {0}/{1}------".format(step,tot_steps)
