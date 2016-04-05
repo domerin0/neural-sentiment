@@ -21,7 +21,7 @@ import util.vocabmapping
 
 flags = tf.app.flags
 FLAGS = flags.FLAGS
-flags.DEFINE_string('checkpoint_dir', 'data/checkpoints/1459487748hiddensize_128_dropout_0.8_numlayers_1', 'Directory to store/restore checkpoints')
+flags.DEFINE_string('checkpoint_dir', 'data/checkpoints/', 'Directory to store/restore checkpoints')
 flags.DEFINE_string('text', 'Hello World!', 'Text to sample with.')
 
 def main():
@@ -31,7 +31,7 @@ def main():
 		if model == None:
 			return
 		max_seq_length = model.max_seq_length
-		test_data  = [FLAGS.text.lower(), "second test etxt", "third one to test"]
+		test_data  = [FLAGS.text.lower()]
 		for text in test_data:
 			data, seq_lengths, targets = prepareText(text, max_seq_length, vocab_mapping)
 			input_feed = {}
