@@ -66,7 +66,7 @@ def main():
     print "Number of training examples per batch: {0}, \
     \nNumber of batches per epoch: {1}".format(FLAGS.batch_size,num_batches)
     with tf.Session() as sess:
-        writer = tf.train.SummaryWriter("/tmp/tb_logs", sess.graph_def)
+        writer = tf.train.SummaryWriter("/tmp/tb_logs", sess.graph)
         path = getCheckpointPath()
         model = createModel(sess, vocab_size, path)
     #train model and save to checkpoint
