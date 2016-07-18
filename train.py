@@ -8,7 +8,6 @@ http://deeplearning.net/tutorial/lstm.html
 Written by: Dominik Kaukinen
 '''
 import tensorflow as tf
-from tensorflow.models.rnn import rnn, rnn_cell, seq2seq
 from tensorflow.python.platform import gfile
 import numpy as np
 import sys
