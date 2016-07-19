@@ -8,16 +8,17 @@ http://deeplearning.net/tutorial/lstm.html
 Written by: Dominik Kaukinen
 '''
 import tensorflow as tf
-from tensorflow.models.rnn import rnn, rnn_cell, seq2seq
 from tensorflow.python.platform import gfile
 import numpy as np
 import sys
 import math
 import os
+import ConfigParser
 import random
 import time
 from six.moves import xrange
 import util.dataprocessor
+import util.hyperparams as hyperparams
 import models.sentiment
 import util.vocabmapping
 
@@ -25,159 +26,168 @@ import util.vocabmapping
 
 flags = tf.app.flags
 FLAGS = flags.FLAGS
-flags.DEFINE_float('learning_rate', 0.01, 'Initial learning rate.')
-flags.DEFINE_integer('max_epoch', 50, 'Max number of epochs to train for.')
-flags.DEFINE_integer('num_layers', 2, 'Number of hidden layers.')
-flags.DEFINE_integer('hidden_size', 50, 'Number of hidden units in hidden layers')
-flags.DEFINE_integer('batch_size', 200, 'Size of minibatches.')
-flags.DEFINE_integer('steps_per_checkpoint', 50, 'Number of steps before running test set.')
-flags.DEFINE_float('lr_decay_factor', 0.97, 'Factor by which to decay learning rate.')
-flags.DEFINE_integer('max_seq_length', 200, 'Maximum length of input token sequence')
-flags.DEFINE_integer('grad_clip', 5, 'Max gradient norm')
-flags.DEFINE_integer('max_vocab_size', 20000, 'Maximum size of source vocab')
-flags.DEFINE_float('dropout', 0.5, 'Probability of hidden inputs being removed')
-flags.DEFINE_float('train_frac', 0.7, 'Number between 0 and 1 indicating percentage of\
- data to use for training (rest goes to test set)')
-flags.DEFINE_string('checkpoint_dir', 'data/checkpoints/', 'Directory to store/restore checkpoints')
+flags.DEFINE_string("config_file", "config.ini", "Path to configuration file with hyper-parameters.")
+flags.DEFINE_string("data_dir", "data/", "Path to main data directory.")
+flags.DEFINE_string("checkpoint_dir", "data/checkpoints/", "Directory to store/restore checkpoints")
 
 def main():
-    util.dataprocessor.run(FLAGS.max_seq_length, FLAGS.max_vocab_size)
+	hyper_params = check_get_hyper_param_dic()
+	util.dataprocessor.run(hyper_params["max_seq_length"],
+		hyper_params["max_vocab_size"])
 
-    #create model
-    print "Creating model with..."
-    print "Number of hidden layers: {0}".format(FLAGS.num_layers)
-    print "Number of units per layer: {0}".format(FLAGS.hidden_size)
-    print "Dropout: {0}".format(FLAGS.dropout)
-    vocabmapping = util.vocabmapping.VocabMapping()
-    vocab_size = vocabmapping.getSize()
-    print "Vocab size is: {0}".format(vocab_size)
-    path = "data/processed/"
-    infile = [f for f in os.listdir(path) if os.path.isfile(os.path.join(path, f))]
-    #randomize data order
-    data = np.load(os.path.join(path, infile[0]))
-    for i in range(1, len(infile)):
-        data = np.vstack((data, np.load(os.path.join(path, infile[i]))))
-    np.random.shuffle(data)
-    #data = data[:3000]
-    num_batches = len(data) / FLAGS.batch_size
-    # 70/30 splir for train/test
-    train_start_end_index = [0, int(FLAGS.train_frac * len(data))]
-    test_start_end_index = [int(FLAGS.train_frac * len(data)) + 1, len(data) - 1]
-    print "Number of training examples per batch: {0}, \
-    \nNumber of batches per epoch: {1}".format(FLAGS.batch_size,num_batches)
-    with tf.Session() as sess:
-        writer = tf.train.SummaryWriter("/tmp/tb_logs", sess.graph_def)
-        path = getCheckpointPath()
-        model = createModel(sess, vocab_size, path)
-    #train model and save to checkpoint
-        print "Beggining training..."
-        print "Maximum number of epochs to train for: {0}".format(FLAGS.max_epoch)
-        print "Batch size: {0}".format(FLAGS.batch_size)
-        print "Starting learning rate: {0}".format(FLAGS.learning_rate)
-        print "Learning rate decay factor: {0}".format(FLAGS.lr_decay_factor)
+	#create model
+	print "Creating model with..."
+	print "Number of hidden layers: {0}".format(hyper_params["num_layers"])
+	print "Number of units per layer: {0}".format(hyper_params["hidden_size"])
+	print "Dropout: {0}".format(hyper_params["dropout"])
+	vocabmapping = util.vocabmapping.VocabMapping()
+	vocab_size = vocabmapping.getSize()
+	print "Vocab size is: {0}".format(vocab_size)
+	path = "data/processed/"
+	infile = [f for f in os.listdir(path) if os.path.isfile(os.path.join(path, f))]
+	#randomize data order
+	data = np.load(os.path.join(path, infile[0]))
+	for i in range(1, len(infile)):
+		data = np.vstack((data, np.load(os.path.join(path, infile[i]))))
+	np.random.shuffle(data)
+	#data = data[:3000]
+	num_batches = len(data) / hyper_params["batch_size"]
+	# 70/30 splir for train/test
+	train_start_end_index = [0, int(hyper_params["train_frac"] * len(data))]
+	test_start_end_index = [int(hyper_params["train_frac"] * len(data)) + 1, len(data) - 1]
+	print "Number of training examples per batch: {0}, \
+	\nNumber of batches per epoch: {1}".format(hyper_params["batch_size"],num_batches)
+	with tf.Session() as sess:
+		writer = tf.train.SummaryWriter("/tmp/tb_logs", sess.graph)
+		model = create_model(sess, hyper_params, vocab_size)
+	#train model and save to checkpoint
+		print "Beggining training..."
+		print "Maximum number of epochs to train for: {0}".format(hyper_params["max_epoch"])
+		print "Batch size: {0}".format(hyper_params["batch_size"])
+		print "Starting learning rate: {0}".format(hyper_params["learning_rate"])
+		print "Learning rate decay factor: {0}".format(hyper_params["lr_decay_factor"])
 
-        step_time, loss = 0.0, 0.0
-        previous_losses = []
-        tot_steps = num_batches * FLAGS.max_epoch
-        model.initData(data, train_start_end_index, test_start_end_index)
-        #starting at step 1 to prevent test set from running after first batch
-        for step in xrange(1, tot_steps):
-            # Get a batch and make a step.
-            start_time = time.time()
+		step_time, loss = 0.0, 0.0
+		previous_losses = []
+		tot_steps = num_batches * hyper_params["max_epoch"]
+		model.initData(data, train_start_end_index, test_start_end_index)
+		#starting at step 1 to prevent test set from running after first batch
+		for step in xrange(1, tot_steps):
+			# Get a batch and make a step.
+			start_time = time.time()
 
-            inputs, targets, seq_lengths = model.getBatch()
-            str_summary, step_loss, _ = model.step(sess, inputs, targets, seq_lengths, False)
+			inputs, targets, seq_lengths = model.getBatch()
+			str_summary, step_loss, _ = model.step(sess, inputs, targets, seq_lengths, False)
 
-            step_time += (time.time() - start_time) / FLAGS.steps_per_checkpoint
-            loss += step_loss / FLAGS.steps_per_checkpoint
+			step_time += (time.time() - start_time) / hyper_params["steps_per_checkpoint"]
+			loss += step_loss / hyper_params["steps_per_checkpoint"]
 
-            # Once in a while, we save checkpoint, print statistics, and run evals.
-            if step % FLAGS.steps_per_checkpoint == 0:
-                writer.add_summary(str_summary, step)
-                # Print statistics for the previous epoch.
-                print ("global step %d learning rate %.7f step-time %.2f loss %.4f"
-                % (model.global_step.eval(), model.learning_rate.eval(),
-                step_time, loss))
-                # Decrease learning rate if no improvement was seen over last 3 times.
-                if len(previous_losses) > 2 and loss > max(previous_losses[-3:]):
-                    sess.run(model.learning_rate_decay_op)
-                previous_losses.append(loss)
-                # Save checkpoint and zero timer and loss.
-                step_time, loss, test_accuracy = 0.0, 0.0, 0.0
-                # Run evals on test set and print their accuracy.
-                print "Running test set"
-                for test_step in xrange(len(model.test_data)):
-                    inputs, targets, seq_lengths = model.getBatch(True)
-                    str_summary, test_loss, _, accuracy = model.step(sess, inputs, targets, seq_lengths, True)
-                    loss += test_loss
-                    test_accuracy += accuracy
-                normalized_test_loss, normalized_test_accuracy = loss / len(model.test_data), test_accuracy / len(model.test_data)
-                checkpoint_path = os.path.join(path, "sentiment{0}.ckpt".format(normalized_test_accuracy))
-                model.saver.save(sess, checkpoint_path, global_step=model.global_step)
-                writer.add_summary(str_summary, step)
-                print "Avg Test Loss: {0}, Avg Test Accuracy: {1}".format(normalized_test_loss, normalized_test_accuracy)
-                print "-------Step {0}/{1}------".format(step,tot_steps)
-                loss = 0.0
-                sys.stdout.flush()
+			# Once in a while, we save checkpoint, print statistics, and run evals.
+			if step % hyper_params["steps_per_checkpoint"] == 0:
+				writer.add_summary(str_summary, step)
+				# Print statistics for the previous epoch.
+				print ("global step %d learning rate %.7f step-time %.2f loss %.4f"
+				% (model.global_step.eval(), model.learning_rate.eval(),
+				step_time, loss))
+				# Decrease learning rate if no improvement was seen over last 3 times.
+				if len(previous_losses) > 2 and loss > max(previous_losses[-3:]):
+					sess.run(model.learning_rate_decay_op)
+				previous_losses.append(loss)
+				# Save checkpoint and zero timer and loss.
+				step_time, loss, test_accuracy = 0.0, 0.0, 0.0
+				# Run evals on test set and print their accuracy.
+				print "Running test set"
+				for test_step in xrange(len(model.test_data)):
+					inputs, targets, seq_lengths = model.getBatch(True)
+					str_summary, test_loss, _, accuracy = model.step(sess, inputs, targets, seq_lengths, True)
+					loss += test_loss
+					test_accuracy += accuracy
+				normalized_test_loss, normalized_test_accuracy = loss / len(model.test_data), test_accuracy / len(model.test_data)
+				checkpoint_path = os.path.join(path, "sentiment{0}.ckpt".format(normalized_test_accuracy))
+				model.saver.save(sess, checkpoint_path, global_step=model.global_step)
+				writer.add_summary(str_summary, step)
+				print "Avg Test Loss: {0}, Avg Test Accuracy: {1}".format(normalized_test_loss, normalized_test_accuracy)
+				print "-------Step {0}/{1}------".format(step,tot_steps)
+				loss = 0.0
+				sys.stdout.flush()
 
-def createModel(session, vocab_size, path):
-    model = models.sentiment.SentimentModel(vocab_size, FLAGS.hidden_size,
-    FLAGS.dropout, FLAGS.num_layers, FLAGS.grad_clip, FLAGS.max_seq_length,
-    FLAGS.learning_rate, FLAGS.lr_decay_factor, FLAGS.batch_size)
-    saveHyperParameters(vocab_size, path)
-    print path
-    ckpt = tf.train.get_checkpoint_state(path)
-    if ckpt and gfile.Exists(ckpt.model_checkpoint_path):
-        print "Reading model parameters from {0}".format(ckpt.model_checkpoint_path)
-        model.saver.restore(session, ckpt.model_checkpoint_path)
-    else:
-        print "Created model with fresh parameters."
-        session.run(tf.initialize_all_variables())
-    return model
+def create_model(session, hyper_params, vocab_size):
+	model = models.sentiment.SentimentModel(vocab_size,
+		hyper_params["hidden_size"],
+		hyper_params["dropout"],
+		hyper_params["num_layers"],
+		hyper_params["grad_clip"],
+		hyper_params["max_seq_length"],
+		hyper_params["learning_rate"],
+		hyper_params["lr_decay_factor"],
+		hyper_params["batch_size"])
+	ckpt = tf.train.get_checkpoint_state(FLAGS.checkpoint_dir)
+	if ckpt and gfile.Exists(ckpt.model_checkpoint_path):
+		print "Reading model parameters from {0}".format(ckpt.model_checkpoint_path)
+		model.saver.restore(session, ckpt.model_checkpoint_path)
+	else:
+		print "Created model with fresh parameters."
+		session.run(tf.initialize_all_variables())
+	return model
 
-def getCheckpointPath():
-    '''
-    Check if new hyper params match with old ones
-    if not, then create a new model in a new Directory
-    Returns:
-    path to checkpoint directory
-    '''
-    old_path = os.path.join(FLAGS.checkpoint_dir, "hyperparams.npy")
-    if os.path.exists(old_path):
-        params = np.load(old_path)
-        ok = \
-        params[3] == FLAGS.num_layers and \
-        params[1] == FLAGS.hidden_size and \
-        params[2] == FLAGS.dropout and \
-        params[5] == FLAGS.max_seq_length and \
-        params[0] == FLAGS.max_vocab_size
-        if ok:
-            return FLAGS.checkpoint_dir
-        else:
-            infostring = "hiddensize_{0}_dropout_{1}_numlayers_{2}".format(FLAGS.hidden_size,
-            FLAGS.dropout, FLAGS.num_layers)
-            path = os.path.join("data/checkpoints/", str(int(time.time())) + infostring)
-            if not os.path.exists(path):
-                os.makedirs(path)
-            print "hyper parameters changed, training new model at {0}".format(path)
-            return path
-    else:
-        return FLAGS.checkpoint_dir
+def read_config_file():
+	'''
+	Reads in config file, returns dictionary of network params
+	'''
+	config = ConfigParser.ConfigParser()
+	config.read(FLAGS.config_file)
+	dic = {}
+	sentiment_section = "sentiment_network_params"
+	general_section = "general"
+	dic["num_layers"] = config.getint(sentiment_section, "num_layers")
+	dic["hidden_size"] = config.getint(sentiment_section, "hidden_size")
+	dic["dropout"] = config.getfloat(sentiment_section, "dropout")
+	dic["batch_size"] = config.getint(sentiment_section, "batch_size")
+	dic["train_frac"] = config.getfloat(sentiment_section, "train_frac")
+	dic["learning_rate"] = config.getfloat(sentiment_section, "learning_rate")
+	dic["lr_decay_factor"] = config.getfloat(sentiment_section, "lr_decay_factor")
+	dic["grad_clip"] = config.getint(sentiment_section, "grad_clip")
+	dic["use_config_file_if_checkpoint_exists"] = config.getboolean(general_section,
+		"use_config_file_if_checkpoint_exists")
+	dic["max_epoch"] = config.getint(sentiment_section, "max_epoch")
+	dic ["max_vocab_size"] = config.getint(sentiment_section, "max_vocab_size")
+	dic["max_seq_length"] = config.getint(general_section,
+		"max_seq_length")
+	dic["steps_per_checkpoint"] = config.getint(general_section,
+		"steps_per_checkpoint")
+	return dic
 
-
-'''
-This function is sort of silly, but I don't know how else to restore the model
-from a checkpoint without giving it the same hyper parameters. This method
-makes it easier to store (and restore) the hyper parameters of the model.
-
-This only works because they are all numerical types.
-'''
-def saveHyperParameters(vocab_size, path):
-    hParams = np.array([vocab_size, FLAGS.hidden_size,
-    FLAGS.dropout, FLAGS.num_layers, FLAGS.grad_clip, FLAGS.max_seq_length,
-    FLAGS.learning_rate, FLAGS.lr_decay_factor])
-    path = os.path.join(path, "hyperparams.npy")
-    np.save(path, hParams)
+def check_get_hyper_param_dic():
+	'''
+	Retrieves hyper parameter information from either config file or checkpoint
+	'''
+	if not os.path.exists(FLAGS.checkpoint_dir):
+		os.makedirs(FLAGS.checkpoint_dir)
+	serializer = hyperparams.HyperParameterHandler(FLAGS.checkpoint_dir)
+	hyper_params = read_config_file()
+	if serializer.checkExists():
+		if serializer.checkChanged(hyper_params):
+			if not hyper_params["use_config_file_if_checkpoint_exists"]:
+				hyper_params = serializer.getParams()
+				print "Restoring hyper params from previous checkpoint..."
+			else:
+				new_checkpoint_dir = "{0}_hidden_size_{1}_numlayers_{2}_dropout_{3}".format(
+				int(time.time()),
+				hyper_params["hidden_size"],
+				hyper_params["num_layers"],
+				hyper_params["dropout"])
+				new_checkpoint_dir = os.path.join(FLAGS.checkpoint_dir,
+					new_checkpoint_dir)
+				os.makedirs(new_checkpoint_dir)
+				FLAGS.checkpoint_dir = new_checkpoint_dir
+ 				serializer = hyperparams.HyperParameterHandler(FLAGS.checkpoint_dir)
+				serializer.saveParams(hyper_params)
+		else:
+			print "No hyper parameter changed detected, using old checkpoint..."
+	else:
+		serializer.saveParams(hyper_params)
+		print "No hyper params detected at checkpoint... reading config file"
+	return hyper_params
 
 if __name__ == '__main__':
-    main()
+	main()

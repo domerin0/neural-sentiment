@@ -1,6 +1,6 @@
 
 import tensorflow as tf
-from tensorflow.models.rnn import rnn, rnn_cell, seq2seq
+from tensorflow.python.ops import rnn, rnn_cell, seq2seq
 import numpy as np
 
 class SentimentModel(object):
