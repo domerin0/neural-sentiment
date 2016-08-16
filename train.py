@@ -43,9 +43,10 @@ def main():
 	vocabmapping = util.vocabmapping.VocabMapping()
 	vocab_size = vocabmapping.getSize()
 	print "Vocab size is: {0}".format(vocab_size)
-	path = "data/processed/"
+	path = os.path.join(FLAGS.data_dir, "processed/")
 	infile = [f for f in os.listdir(path) if os.path.isfile(os.path.join(path, f))]
 	#randomize data order
+	print infile
 	data = np.load(os.path.join(path, infile[0]))
 	for i in range(1, len(infile)):
 		data = np.vstack((data, np.load(os.path.join(path, infile[i]))))
@@ -103,7 +104,7 @@ def main():
 					loss += test_loss
 					test_accuracy += accuracy
 				normalized_test_loss, normalized_test_accuracy = loss / len(model.test_data), test_accuracy / len(model.test_data)
-				checkpoint_path = os.path.join(path, "sentiment{0}.ckpt".format(normalized_test_accuracy))
+				checkpoint_path = os.path.join(FLAGS.checkpoint_dir, "sentiment{0}.ckpt".format(normalized_test_accuracy))
 				model.saver.save(sess, checkpoint_path, global_step=model.global_step)
 				writer.add_summary(str_summary, step)
 				print "Avg Test Loss: {0}, Avg Test Accuracy: {1}".format(normalized_test_loss, normalized_test_accuracy)

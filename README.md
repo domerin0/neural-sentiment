@@ -23,15 +23,11 @@ To run with preset hyper-parameters just run:
 
 `$ python train.py`
 
-To try other hyper-parameters:
+To try other hyper-parameters, you can change them in the config file. If you want to provide your own:
 
-`$ python train.py --dropout=0.8 --hidden_size=120` etc...
+`$ python train.py --config_file="path_to_config"`
 
-It will automatically check if parameters in checkpoint_dir match, if not it will
-make a new directory inside checkpoint_dir to train the new network
-
-The modifiable hyper-parameters are:
-
+Descripton of hyper parameters:
 
 |   Name               | Type          |     Description                            |
 | :-------------------:|:-------------:|:-------------------------------------------|
