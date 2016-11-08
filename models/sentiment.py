@@ -73,11 +73,6 @@ class SentimentModel(object):
 											initial_state=initial_state,
 											sequence_length=self.seq_lengths)
 
-			states_list = []
-			for state in rnn_state[-1]:
-				states_list.append(state)
-			avg_states = tf.reduce_mean(tf.pack(states_list), 0)
-
 		with tf.variable_scope("output_projection"):
 			W = tf.get_variable(
 				"W",
@@ -87,6 +82,7 @@ class SentimentModel(object):
 				"b",
 				[self.num_classes],
 				initializer=tf.constant_initializer(0.1))
+			#we use the cell memory state for information on sentence embedding
 			self.scores = tf.nn.xw_plus_b(rnn_state[-1][0], W, b)
 			self.y = tf.nn.softmax(self.scores)
 			self.predictions = tf.argmax(self.scores, 1)
