@@ -39,9 +39,6 @@ class SentimentModel(object):
 		#target: a list of values betweeen 0 and 1 indicating target scores
 		#seq_lengths:the early stop lengths of each input tensor
 		self.str_summary_type = tf.placeholder(tf.string,name="str_summary_type")
-		#for i in range(max_seq_length):
-		#	self.seq_input.append(tf.placeholder(tf.int32, shape=[None],
-		#	name="input{0}".format(i)))
 		self.seq_input = tf.placeholder(tf.int32, shape=[None, max_seq_length],
 		name="input")
 		self.target = tf.placeholder(tf.float32, name="target", shape=[None,self.num_classes])
@@ -57,36 +54,29 @@ class SentimentModel(object):
 				"W",
 				[self.vocab_size, hidden_size],
 				initializer=tf.random_uniform_initializer(-1.0, 1.0))
-			self.embedded_tokens = tf.nn.embedding_lookup(W, self.seq_input)
-			self.embedded_tokens_drop = tf.nn.dropout(self.embedded_tokens, self.dropout_keep_prob_embedding)
+			embedded_tokens = tf.nn.embedding_lookup(W, self.seq_input)
+			embedded_tokens_drop = tf.nn.dropout(embedded_tokens, self.dropout_keep_prob_embedding)
 
-		#Using this process to get all hidden states across time is from:
-		#https://github.com/dennybritz/tf-models/blob/master/tfmodels/models/rnn/rnn_classifier.py
+		rnn_input = [embedded_tokens_drop[:, i, :] for i in range(self.max_seq_length)]
 		with tf.variable_scope("lstm") as scope:
-			# The RNN cell
 			single_cell = rnn_cell.DropoutWrapper(
-				rnn_cell.LSTMCell(hidden_size, hidden_size, initializer=tf.random_uniform_initializer(-1.0, 1.0)),
-				input_keep_prob=self.dropout_keep_prob_lstm_input,
-				output_keep_prob=self.dropout_keep_prob_lstm_output)
-			self.cell = rnn_cell.MultiRNNCell([single_cell] * num_layers)
-			# Build the recurrence. We do this manually to use truncated backprop
-			self.initial_state = tf.zeros([self.batch_size, self.cell.state_size])
-			self.encoder_states = [self.initial_state]
-			self.encoder_outputs = []
-			for i in range(self.max_seq_length):
-				if i > 0:
-					scope.reuse_variables()
-				new_output, new_state = self.cell(self.embedded_tokens_drop[:, i, :], self.encoder_states[-1])
-				#if i < max(0, self.sequence_length - self.backprop_truncate_after):
-				#new_state = tf.stop_gradient(new_state)
-				self.encoder_outputs.append(new_output)
-				self.encoder_states.append(new_state)
-				#split the ccncatenated state into cell state and hidden state
-			concat_states =  tf.pack(self.encoder_states)
-			avg_states = tf.reduce_mean(concat_states, 0)
-			_, self.final_state = tf.split(1,2,avg_states)
-			self.final_state = tf.slice(self.final_state, [0,hidden_size*(num_layers - 1)], [-1,hidden_size])
-			#self.final_output = self.encoder_outputs[-1]
+				rnn_cell.LSTMCell(hidden_size,
+								  initializer=tf.random_uniform_initializer(-1.0, 1.0),
+								  state_is_tuple=True),
+								  input_keep_prob=self.dropout_keep_prob_lstm_input,
+								  output_keep_prob=self.dropout_keep_prob_lstm_output)
+			cell = rnn_cell.MultiRNNCell([single_cell] * num_layers, state_is_tuple=True)
+
+			initial_state = cell.zero_state(self.batch_size, tf.float32)
+
+			rnn_output, rnn_state = rnn.rnn(cell, rnn_input,
+											initial_state=initial_state,
+											sequence_length=self.seq_lengths)
+
+			states_list = []
+			for state in rnn_state[-1]:
+				states_list.append(state)
+			avg_states = tf.reduce_mean(tf.pack(states_list), 0)
 
 		with tf.variable_scope("output_projection"):
 			W = tf.get_variable(
@@ -97,7 +87,7 @@ class SentimentModel(object):
 				"b",
 				[self.num_classes],
 				initializer=tf.constant_initializer(0.1))
-			self.scores = tf.nn.xw_plus_b(self.final_state, W, b)
+			self.scores = tf.nn.xw_plus_b(rnn_state[-1][0], W, b)
 			self.y = tf.nn.softmax(self.scores)
 			self.predictions = tf.argmax(self.scores, 1)
 
