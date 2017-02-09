@@ -18,6 +18,7 @@ import util.dataprocessor
 import models.sentiment
 import util.vocabmapping
 import ConfigParser
+import pickle
 
 flags = tf.app.flags
 FLAGS = flags.FLAGS
@@ -34,18 +35,21 @@ def main():
 		max_seq_length = model.max_seq_length
 		test_data  = [FLAGS.text.lower()]
 		for text in test_data:
-			data, seq_lengths, targets = prepareText(text, max_seq_length, vocab_mapping)
+			data, seq_lengths, targets = prepare_text(text, max_seq_length, vocab_mapping)
 			input_feed = {}
 			input_feed[model.seq_input.name] = data
 			input_feed[model.target.name] = targets
 			input_feed[model.seq_lengths.name] = seq_lengths
+			input_feed[model.dropout_keep_prob_embedding.name] = model.dropout
+			input_feed[model.dropout_keep_prob_lstm_input.name] = model.dropout
+			input_feed[model.dropout_keep_prob_lstm_output.name] = model.dropout
 			output_feed = [model.y]
 			outputs = sess.run(output_feed, input_feed)
 			score = np.argmax(outputs[0])
 			probability = outputs[0].max(axis=1)[0]
 			print "Value of sentiment: {0} with probability: {1}".format(score , probability)
 
-def prepareText(text, max_seq_length, vocab_mapping):
+def prepare_text(text, max_seq_length, vocab_mapping):
 	'''
 	Input:
 	text_list: a list of strings
@@ -92,16 +96,20 @@ def loadModel(session, vocab_size):
 	return model
 
 def load_model(session, vocab_size):
-	hyper_params = read_config_file()
-	model = models.sentiment.SentimentModel(vocab_size,
-		hyper_params["hidden_size"],
-		1.0,
-		hyper_params["num_layers"],
-		hyper_params["grad_clip"],
-		hyper_params["max_seq_length"],
-		hyper_params["learning_rate"],
-		hyper_params["lr_decay_factor"],
-		1)
+	hyper_params_path = os.path.join(FLAGS.checkpoint_dir, 'hyperparams.p')
+	with open(hyper_params_path, 'rb') as hp:
+		hyper_params = pickle.load(hp)
+	#hyper_params = read_config_file()
+	model = models.sentiment.SentimentModel(vocab_size = vocab_size,
+											hidden_size = hyper_params["hidden_size"],
+											dropout = 1.0,
+											num_layers = hyper_params["num_layers"],
+											max_gradient_norm = hyper_params["grad_clip"],
+											max_seq_length = hyper_params["max_seq_length"],
+											learning_rate = hyper_params["learning_rate"],
+											lr_decay = hyper_params["lr_decay_factor"],
+											batch_size = 1,
+											forward_only=True)
 	ckpt = tf.train.get_checkpoint_state(FLAGS.checkpoint_dir)
 	if ckpt and gfile.Exists(ckpt.model_checkpoint_path):
 		print "Reading model parameters from {0}".format(ckpt.model_checkpoint_path)
