@@ -113,15 +113,15 @@ def main():
 				sys.stdout.flush()
 
 def create_model(session, hyper_params, vocab_size):
-	model = models.sentiment.SentimentModel(vocab_size,
-		hyper_params["hidden_size"],
-		hyper_params["dropout"],
-		hyper_params["num_layers"],
-		hyper_params["grad_clip"],
-		hyper_params["max_seq_length"],
-		hyper_params["learning_rate"],
-		hyper_params["lr_decay_factor"],
-		hyper_params["batch_size"])
+	model = models.sentiment.SentimentModel(vocab_size = vocab_size,
+											hidden_size = hyper_params["hidden_size"],
+											dropout = hyper_params["dropout"],
+											num_layers = hyper_params["num_layers"],
+											max_gradient_norm = hyper_params["grad_clip"],
+											max_seq_length = hyper_params["max_seq_length"],
+											learning_rate = hyper_params["learning_rate"],
+											lr_decay = hyper_params["lr_decay_factor"],
+											batch_size = hyper_params["batch_size"])
 	ckpt = tf.train.get_checkpoint_state(FLAGS.checkpoint_dir)
 	if ckpt and gfile.Exists(ckpt.model_checkpoint_path):
 		print "Reading model parameters from {0}".format(ckpt.model_checkpoint_path)
