@@ -4,7 +4,7 @@ A sentiment analyzer using deep rnns, built with TensorFlow.
 ### Installation & Dependency Instructions
 
 1. Python 2.7.x
-2. Install [TensorFlow](https://www.tensorflow.org/versions/master/get_started/os_setup.html)
+2. Install [TensorFlow 1.2]https://www.tensorflow.org/install/)
 3. `$ sudo pip install nltk`
 
 Next you will need to download the nltk tokenizer dataset:
