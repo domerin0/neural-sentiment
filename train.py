@@ -59,7 +59,7 @@ def main():
 	print "Number of training examples per batch: {0}, \
 	\nNumber of batches per epoch: {1}".format(hyper_params["batch_size"],num_batches)
 	with tf.Session() as sess:
-		writer = tf.train.SummaryWriter("/tmp/tb_logs", sess.graph)
+		writer = tf.summary.FileWriter("/tmp/tb_logs", sess.graph)
 		model = create_model(sess, hyper_params, vocab_size)
 	#train model and save to checkpoint
 		print "Beggining training..."

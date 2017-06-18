@@ -1,6 +1,6 @@
 
 import tensorflow as tf
-from tensorflow.python.ops import rnn, rnn_cell, seq2seq
+from tensorflow.python.ops import rnn, rnn_cell
 import numpy as np
 
 class SentimentModel(object):
@@ -73,9 +73,10 @@ class SentimentModel(object):
 
 			initial_state = cell.zero_state(self.batch_size, tf.float32)
 
-			rnn_output, rnn_state = rnn.rnn(cell, rnn_input,
-											initial_state=initial_state,
-											sequence_length=self.seq_lengths)
+			rnn_output, rnn_state = rnn.static_rnn(cell=cell,
+												   inputs=rnn_input,
+												   initial_state=initial_state,
+												   sequence_length=self.seq_lengths)
 
 		with tf.variable_scope("output_projection"):
 			W = tf.get_variable(
@@ -92,7 +93,9 @@ class SentimentModel(object):
 			self.predictions = tf.argmax(self.scores, 1)
 
 		with tf.variable_scope("loss"):
-			self.losses = tf.nn.softmax_cross_entropy_with_logits(self.scores, self.target, name="ce_losses")
+			self.losses = tf.nn.softmax_cross_entropy_with_logits(logits=self.scores,
+																  labels=self.target,
+																  name="ce_losses")
 			self.total_loss = tf.reduce_sum(self.losses)
 			self.mean_loss = tf.reduce_mean(self.losses)
 
@@ -107,11 +110,12 @@ class SentimentModel(object):
 			gradients = tf.gradients(self.losses, params)
 			clipped_gradients, norm = tf.clip_by_global_norm(gradients, self.max_gradient_norm)
 			with tf.name_scope("grad_norms") as scope:
-				grad_summ = tf.scalar_summary("grad_norms", norm)
+				grad_summ = tf.summary.scalar("grad_norms", norm)
 			self.update = opt.apply_gradients(zip(clipped_gradients, params), global_step=self.global_step)
-			loss_summ = tf.scalar_summary("{0}_loss".format(self.str_summary_type), self.mean_loss)
-			acc_summ = tf.scalar_summary("{0}_accuracy".format(self.str_summary_type), self.accuracy)
-			self.merged = tf.merge_summary([loss_summ, acc_summ])
+			loss_summ = tf.summary.scalar("{0}_loss".format(self.str_summary_type), self.mean_loss)
+			acc_summ = tf.summary.scalar("{0}_accuracy".format(self.str_summary_type), self.accuracy)
+			self.merged = tf.summary.merge_all()
+			#self.merged = tf.merge_summary([loss_summ, acc_summ])
 		self.saver = tf.train.Saver(tf.all_variables())
 
 	def getBatch(self, test_data=False):
