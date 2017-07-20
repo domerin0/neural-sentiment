@@ -77,6 +77,9 @@ class SentimentModel(object):
 												   inputs=rnn_input,
 												   initial_state=initial_state,
 												   sequence_length=self.seq_lengths)
+		#concat_states =  tf.pack(rnn_state)
+		final_state = tf.reduce_mean(rnn_output, 0)
+		#final_state = tf.slice(avg_states, [0,hidden_size*(num_layers - 1)], [-1,hidden_size])
 
 		with tf.variable_scope("output_projection"):
 			W = tf.get_variable(
@@ -88,7 +91,7 @@ class SentimentModel(object):
 				[self.num_classes],
 				initializer=tf.constant_initializer(0.1))
 			#we use the cell memory state for information on sentence embedding
-			self.scores = tf.nn.xw_plus_b(rnn_state[-1][0], W, b)
+			self.scores = tf.nn.xw_plus_b(final_state, W, b)
 			self.y = tf.nn.softmax(self.scores)
 			self.predictions = tf.argmax(self.scores, 1)
 
@@ -116,9 +119,9 @@ class SentimentModel(object):
 			acc_summ = tf.summary.scalar("{0}_accuracy".format(self.str_summary_type), self.accuracy)
 			self.merged = tf.summary.merge_all()
 			#self.merged = tf.merge_summary([loss_summ, acc_summ])
-		self.saver = tf.train.Saver(tf.all_variables())
+		self.saver = tf.train.Saver(tf.global_variables())
 
-	def getBatch(self, test_data=False):
+	def get_batch(self, test_data=False):
 		'''
 		Get a random batch of data to preprocess for a step
 		not sure how efficient this is...
@@ -152,7 +155,7 @@ class SentimentModel(object):
 			self.test_batch_pointer = self.test_batch_pointer % len(self.test_data)
 			return batch_inputs, targets, seq_lengths
 
-	def initData(self, data, train_start_end_index, test_start_end_index):
+	def init_data(self, data, train_start_end_index, test_start_end_index):
 		'''
 		Split data into train/test sets and load into memory
 		'''
@@ -169,8 +172,8 @@ class SentimentModel(object):
 		self.test_data = data[test_start_end_index[0]:test_start_end_index[1]]
 		self.test_num_batch = len(self.test_data) / self.batch_size
 
-		num_train_batches = len(self.train_data) / self.batch_size
-		num_test_batches = len(self.test_data) / self.batch_size
+		num_train_batches = int(len(self.train_data) / self.batch_size)
+		num_test_batches = int(len(self.test_data) / self.batch_size)
 		train_cutoff = len(self.train_data) - (len(self.train_data) % self.batch_size)
 		test_cutoff = len(self.test_data) - (len(self.test_data) % self.batch_size)
 		self.train_data = self.train_data[:train_cutoff]
@@ -182,7 +185,7 @@ class SentimentModel(object):
 		self.train_targets = np.split(self.train_targets, num_train_batches)
 		self.train_data = np.split(self.train_data, num_train_batches)
 
-		print "Test size is: {0}, splitting into {1} batches".format(len(self.test_data), num_test_batches)
+		print("Test size is: {0}, splitting into {1} batches".format(len(self.test_data), num_test_batches))
 		self.test_data = np.split(self.test_data, num_test_batches)
 		self.test_targets = onehot[test_start_end_index[0]:test_start_end_index[1]][:test_cutoff]
 		self.test_targets = np.split(self.test_targets, num_test_batches)
