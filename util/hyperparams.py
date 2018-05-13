@@ -17,7 +17,7 @@ class HyperParameterHandler(object):
         with open(self.file_path, 'rb') as handle:
             return pickle.load(handle)
 
-    def check_exists(self):
+    def exists(self):
         '''
         Checks if hyper parameter file exists
         '''

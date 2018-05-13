@@ -213,7 +213,6 @@ class SentimentModel(object):
 		input_feed[self.dropout_keep_prob_embedding.name] = self.dropout
 		input_feed[self.dropout_keep_prob_lstm_input.name] = self.dropout
 		input_feed[self.dropout_keep_prob_lstm_output.name] = self.dropout
-
 		if not forward_only:
 			input_feed[self.str_summary_type.name] = "train"
 			output_feed = [self.merged, self.mean_loss, self.update]

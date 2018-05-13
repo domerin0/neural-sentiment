@@ -34,7 +34,7 @@ flags.DEFINE_string("data_dir", "data/", "Path to main data directory.")
 flags.DEFINE_string("checkpoint_dir", "data/checkpoints/", "Directory to store/restore checkpoints")
 
 def main():
-	hyper_params = check_get_hyper_param_dic()
+	checkpoint_dir, hyper_params = get_ckpt_path_params()
 	util.dataprocessor.run(hyper_params["max_seq_length"],
 		hyper_params["max_vocab_size"])
 
@@ -44,15 +44,15 @@ def main():
 	print("Number of units per layer: {0}".format(hyper_params["hidden_size"]))
 	print("Dropout: {0}".format(hyper_params["dropout"]))
 	vocabmapping = util.vocabmapping.VocabMapping()
-	vocab_size = vocabmapping.get_size()
-	print("Vocab size is: {0}".format(vocab_size))
+	hyper_params["max_vocab_size"] = vocabmapping.get_size()
+	print("Vocab size is: {0}".format(hyper_params["max_vocab_size"]))
 	path = os.path.join(FLAGS.data_dir, "processed/")
 	infile = [f for f in os.listdir(path) if os.path.isfile(os.path.join(path, f))]
 	data = np.load(os.path.join(path, infile[0]))
 	for i in range(1, len(infile)):
 		data = np.vstack((data, np.load(os.path.join(path, infile[i]))))
 	np.random.shuffle(data)
-	
+
 	num_batches = int(len(data) / hyper_params["batch_size"])
 	# split for train/test
 	train_start_end_index = [0, int(hyper_params["train_frac"] * len(data))]
@@ -61,7 +61,7 @@ def main():
 	\nNumber of batches per epoch: {1}".format(hyper_params["batch_size"],num_batches))
 	with tf.Session() as sess:
 		writer = tf.summary.FileWriter("/tmp/tb_logs", sess.graph)
-		model = create_model(sess, hyper_params, vocab_size)
+		model = create_model(sess, hyper_params, checkpoint_dir)
 	#train model and save to checkpoint
 		print("Beggining training...")
 		print("Maximum number of epochs to train for: {0}".format(hyper_params["max_epoch"]))
@@ -113,8 +113,8 @@ def main():
 				loss = 0.0
 				sys.stdout.flush()
 
-def create_model(session, hyper_params, vocab_size):
-	model = models.sentiment.SentimentModel(vocab_size = vocab_size,
+def create_model(session, hyper_params, path):
+	model = models.sentiment.SentimentModel(vocab_size = hyper_params["max_vocab_size"],
 											hidden_size = hyper_params["hidden_size"],
 											dropout = hyper_params["dropout"],
 											num_layers = hyper_params["num_layers"],
@@ -123,10 +123,10 @@ def create_model(session, hyper_params, vocab_size):
 											learning_rate = hyper_params["learning_rate"],
 											lr_decay = hyper_params["lr_decay_factor"],
 											batch_size = hyper_params["batch_size"])
-	ckpt = tf.train.get_checkpoint_state(FLAGS.checkpoint_dir)
-	if ckpt and gfile.Exists(ckpt.model_checkpoint_path):
-		print("Reading model parameters from {0}".format(ckpt.model_checkpoint_path))
-		model.saver.restore(session, ckpt.model_checkpoint_path)
+	ckpt_path = tf.train.latest_checkpoint(path)
+	if ckpt_path:
+		print("Reading model parameters from {0}".format(ckpt_path))
+		model.saver.restore(session,ckpt_path)
 	else:
 		print("Created model with fresh parameters.")
 		session.run(tf.global_variables_initializer())
@@ -159,7 +159,7 @@ def read_config_file():
 		"steps_per_checkpoint")
 	return dic
 
-def check_get_hyper_param_dic():
+def get_ckpt_path_params():
 	'''
 	Retrieves hyper parameter information from either config file or checkpoint
 	'''
@@ -167,29 +167,20 @@ def check_get_hyper_param_dic():
 		os.makedirs(FLAGS.checkpoint_dir)
 	serializer = hyperparams.HyperParameterHandler(FLAGS.checkpoint_dir)
 	hyper_params = read_config_file()
-	if serializer.check_exists():
-		if serializer.check_changed(hyper_params):
-			if not hyper_params["use_config_file_if_checkpoint_exists"]:
-				hyper_params = serializer.get_params()
-				print("Restoring hyper params from previous checkpoint...")
-			else:
-				new_checkpoint_dir = "{0}_hidden_size_{1}_numlayers_{2}_dropout_{3}".format(
-				int(time.time()),
-				hyper_params["hidden_size"],
-				hyper_params["num_layers"],
-				hyper_params["dropout"])
-				new_checkpoint_dir = os.path.join(FLAGS.checkpoint_dir,
-					new_checkpoint_dir)
-				os.makedirs(new_checkpoint_dir)
-				FLAGS.checkpoint_dir = new_checkpoint_dir
-				serializer = hyperparams.HyperParameterHandler(FLAGS.checkpoint_dir)
-				serializer.save_params(hyper_params)
-		else:
-			print("No hyper parameter changed detected, using old checkpoint...")
+	checkpoint_dir = "maxseqlen_{0}_hidden_size_{1}_numlayers_{2}_vocab_size_{3}".format(
+	hyper_params["max_seq_length"],
+	hyper_params["hidden_size"],
+	hyper_params["num_layers"],
+	hyper_params["dropout"])
+	new_checkpoint_dir = os.path.join(FLAGS.checkpoint_dir,
+		checkpoint_dir)
+	if os.path.exists(new_checkpoint_dir):
+		print("Existing checkpoint found, loading...")
 	else:
+		os.makedirs(new_checkpoint_dir)
+		serializer = hyperparams.HyperParameterHandler(new_checkpoint_dir)
 		serializer.save_params(hyper_params)
-		print("No hyper params detected at checkpoint... reading config file")
-	return hyper_params
+	return new_checkpoint_dir, hyper_params
 
 if __name__ == '__main__':
 	main()
