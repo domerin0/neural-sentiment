@@ -20,11 +20,11 @@ def main():
     lengths = []
     count = 0
     for d in dirs:
-        print "Grabbing sequence lengths from: {0}".format(d)
+        print("Grabbing sequence lengths from: {0}".format(d))
         for f in os.listdir(d):
             count += 1
             if count % 100 == 0:
-                print "Determining length of: {0}".format(f)
+                print("Determining length of: {0}".format(f))
             with open(os.path.join(d, f), 'r') as review:
                 tokens = tokenize(review.read().lower())
                 numTokens = len(tokens)
@@ -47,23 +47,10 @@ def main():
     plt.xlim(0,1500)
     plt.show()
 
-'''
-Command line arguments being read in
-'''
-def setGraphParameters():
-    try:
-        for arg in string_args:
-            exec("if \"{0}\" in sys.argv:\n\
-                \tglobal {0}\n\
-                \t{0} = {1}(sys.argv[sys.argv.index({0}) + 1])".format(arg[0], arg[1]))
-    except Exception as a:
-        print "Problem with cmd args " + a
-        print x
-
-'''
-This function tokenizes sentences
-'''
 def tokenize(text):
+    '''
+    This function tokenizes sentences
+    '''
     text = text.decode('utf-8')
     return nltk.word_tokenize(text)
 

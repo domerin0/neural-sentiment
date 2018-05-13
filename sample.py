@@ -29,7 +29,7 @@ flags.DEFINE_string('config_file', 'config.ini', 'Path to configuration file.')
 def main():
 	vocab_mapping = util.vocabmapping.VocabMapping()
 	with tf.Session() as sess:
-		model = load_model(sess, vocab_mapping.getSize())
+		model = load_model(sess, vocab_mapping.get_size())
 		if model == None:
 			return
 		max_seq_length = model.max_seq_length
@@ -47,7 +47,7 @@ def main():
 			outputs = sess.run(output_feed, input_feed)
 			score = np.argmax(outputs[0])
 			probability = outputs[0].max(axis=1)[0]
-			print "Value of sentiment: {0} with probability: {1}".format(score , probability)
+			print("Value of sentiment: {0} with probability: {1}".format(score , probability))
 
 def prepare_text(text, max_seq_length, vocab_mapping):
 	'''
@@ -65,9 +65,9 @@ def prepare_text(text, max_seq_length, vocab_mapping):
 		tokens = tokens[0:max_seq_length]
 	inputs = []
 
-	indices = [vocab_mapping.getIndex(j) for j in tokens]
+	indices = [vocab_mapping.get_index(j) for j in tokens]
 	if len(indices) < max_seq_length:
-		indices = indices + [vocab_mapping.getIndex("<PAD>") for i in range(max_seq_length - len(indices))]
+		indices = indices + [vocab_mapping.get_index("<PAD>") for i in range(max_seq_length - len(indices))]
 	else:
 		indices = indices[0:max_seq_length]
 	seq_lengths.append(len(tokens))
@@ -87,11 +87,11 @@ def loadModel(session, vocab_size):
 	float(hParams[6]),float(hParams[7]) ,True)
 	ckpt = tf.train.get_checkpoint_state(FLAGS.checkpoint_dir)
 	if ckpt and gfile.Exists(ckpt.model_checkpoint_path):
-		print "Reading model parameters from {0}".format(ckpt.model_checkpoint_path)
+		print("Reading model parameters from {0}".format(ckpt.model_checkpoint_path))
 		model.saver.restore(session, ckpt.model_checkpoint_path)
 	else:
-		print "Double check you got the checkpoint_dir right..."
-		print "Model not found..."
+		print("Double check you got the checkpoint_dir right...")
+		print("Model not found...")
 		model = None
 	return model
 
@@ -112,11 +112,11 @@ def load_model(session, vocab_size):
 											forward_only=True)
 	ckpt = tf.train.get_checkpoint_state(FLAGS.checkpoint_dir)
 	if ckpt and gfile.Exists(ckpt.model_checkpoint_path):
-		print "Reading model parameters from {0}".format(ckpt.model_checkpoint_path)
+		print("Reading model parameters from {0}".format(ckpt.model_checkpoint_path))
 		model.saver.restore(session, ckpt.model_checkpoint_path)
 	else:
-		print "Double check you got the checkpoint_dir right..."
-		print "Model not found..."
+		print("Double check you got the checkpoint_dir right...")
+		print("Model not found...")
 		model = None
 	return model
 

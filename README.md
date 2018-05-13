@@ -3,9 +3,9 @@ A sentiment analyzer using deep rnns, built with TensorFlow.
 
 ### Installation & Dependency Instructions
 
-1. Python 2.7.x
+1. Python 2 or 3
 2. Install [TensorFlow 1.2]https://www.tensorflow.org/install/)
-3. `$ sudo pip install nltk`
+3. `$ pip install nltk`
 
 Next you will need to download the nltk tokenizer dataset:
 
@@ -73,7 +73,8 @@ There isn't much to see right now except an overview of the graph. I will includ
 
 ### Results
 
-coming soon
+Pre-trained model will be committed soon. Currently with defaults, it gets about 70%.
+I would like to get it to about 80-85% before committing the model.
 
 ### Attribution
 Thanks to reddit user /u/LeavesBreathe for the help with getting the last hidden state
