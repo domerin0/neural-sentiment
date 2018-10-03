@@ -113,7 +113,7 @@ def load_model(session, vocab_size):
 	ckpt = tf.train.get_checkpoint_state(FLAGS.checkpoint_dir)
 	if ckpt and gfile.Exists(ckpt.model_checkpoint_path):
 		print("Reading model parameters from {0}".format(ckpt.model_checkpoint_path))
-		model.saver.restore(session, ckpt.model_checkpoint_path)
+		model.saver.restore(session, tf.train.latest_checkpoint(FLAGS.checkpoint_dir))
 	else:
 		print("Double check you got the checkpoint_dir right...")
 		print("Model not found...")
